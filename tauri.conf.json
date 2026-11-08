@@ -37,9 +37,9 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "ВСТАВЬТЕ_ПУБЛИЧНЫЙ_КЛЮЧ_ИЗ_cargo_tauri_signer_generate",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZDREM2M0IyMjgyNjBEQTAKUldTZ0RTWW9zbVBjYkdmK2RmUitENlFjNVFvVFRqdUlBU0FUUmJVNHJDWXd2VXlzNCtGblV6UU4K",
       "endpoints": [
-        "https://github.com/YOUR_NAME/MineLauncher/releases/latest/download/latest.json"
+        "https://github.com/Xa1ret/MineLauncher/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"
