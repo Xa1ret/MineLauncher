@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MineLauncher</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-theme="dark">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="logo" viewBox="0 0 48 48">
+    <rect x="2" y="2" width="44" height="44" fill="currentColor"/>
+    <path d="M2 34 L34 2 L46 2 L46 14 L14 46 L2 46 Z" fill="var(--bg)" opacity=".0"/>
+    <path d="M11 36V12h5l8 12 8-12h5v24h-5V21l-8 12-8-12v15z" fill="var(--bg)"/>
+    <path d="M30 46 L46 30 V36 L36 46Z" fill="var(--bg)"/>
+  </symbol>
+</svg>
+
+<div id="overlay"></div><div id="wall"></div><div id="wall-dim"></div>
+<canvas id="fx"></canvas>
+<div id="tone"></div>
+<div id="kanji" aria-hidden="true">喰種</div>
+
+<!-- Заставка -->
+<div id="splash">
+  <div class="big glitch" data-text="MINELAUNCHER">MINELAUNCHER</div>
+  <div class="lines" id="splash-lines"></div>
+</div>
+
+<!-- ============ МАСТЕР ПЕРВОГО ЗАПУСКА ============ -->
+<section id="wizard" class="hidden">
+  <header class="wz-head">
+    <div class="brand"><svg><use href="#logo"/></svg>MineLauncher</div>
+    <ol class="steps">
+      <li data-s="1"><b>1</b>Аккаунт</li>
+      <li data-s="2"><b>2</b>Скины</li>
+      <li data-s="3"><b>3</b>Java</li>
+    </ol>
+  </header>
+
+  <div class="wz-body">
+    <!-- Шаг 1 -->
+    <div class="wz-step" id="wz1">
+      <div class="wz-copy">
+        <h1>Войди в аккаунт</h1>
+        <p>Ely.by — бесплатный аккаунт со своими скинами. Лицензия — твой аккаунт Microsoft с купленным Minecraft.</p>
+      </div>
+      <div class="pn wz-form">
+        <div id="wz1-in">
+          <div class="seg">
+            <button id="tab-ely" class="on">Ely.by</button>
+            <button id="tab-ms">Лицензия</button>
+          </div>
+
+          <div id="pane-ely">
+            <div class="field"><label class="l" for="ely-user">Ник или почта на Ely.by</label><input type="text" id="ely-user" autocomplete="username" spellcheck="false"></div>
+            <div class="field"><label class="l" for="ely-pass">Пароль</label><input type="password" id="ely-pass" autocomplete="current-password"></div>
+            <p class="muted small" style="margin-bottom:16px">Если включена двухфакторная защита, введи пароль так: <b>пароль:код</b></p>
+            <div class="row">
+              <button class="btn grow" id="ely-go">Войти</button>
+              <button class="btn ghost" id="ely-reg">Создать аккаунт</button>
+            </div>
+          </div>
+
+          <div id="pane-ms" class="hidden">
+            <p class="muted" style="margin-bottom:16px">Откроется страница Microsoft. Введи на ней код, который покажет лаунчер.</p>
+            <div class="field" id="ms-cid-wrap">
+              <label class="l" for="ms-cid">Azure Client ID</label>
+              <input type="text" id="ms-cid" spellcheck="false" placeholder="00000000-0000-0000-0000-000000000000">
+              <button class="link small" id="ms-azure">Где его взять</button>
+            </div>
+            <button class="btn block" id="ms-go">Войти через Microsoft</button>
+            <div class="code hidden" id="ms-code"></div>
+          </div>
+          <div class="msg" id="wz1-msg"></div>
+        </div>
+
+        <div id="wz1-done" class="hidden">
+          <h2>Ты уже вошёл</h2>
+          <p class="muted" style="margin-bottom:18px">Аккаунт: <b id="wz1-name"></b></p>
+          <div class="row">
+            <button class="btn grow" id="wz1-next">Дальше</button>
+            <button class="btn ghost" id="wz1-out">Сменить аккаунт</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Шаг 2 -->
+    <div class="wz-step hidden" id="wz2">
+      <div class="wz-copy">
+        <h1>Выбери скин</h1>
+        <p>Скин берётся с твоего аккаунта: Ely.by или лицензии. Если пропустишь, его можно сменить позже во вкладке «Скины».</p>
+      </div>
+      <div class="pn wz-form">
+        <div id="host-skin-wz"></div>
+        <div class="wz-nav">
+          <button class="link" id="wz2-skip">Пропустить</button>
+          <button class="btn" id="wz2-next">Дальше</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Шаг 3 -->
+    <div class="wz-step hidden" id="wz3">
+      <div class="wz-copy">
+        <h1>Настрой Java</h1>
+        <p>Minecraft работает на Java. Лаунчер может скачать нужную сам или использовать ту, что уже есть на компьютере.</p>
+      </div>
+      <div class="pn wz-form">
+        <div id="host-java-wz"></div>
+        <div class="wz-nav">
+          <button class="link" id="wz3-back">Назад</button>
+          <button class="btn" id="wz3-done">Войти в лаунчер</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ПРИЛОЖЕНИЕ ============ -->
+<div class="app hidden" id="app">
+  <nav>
+    <div class="logo" id="logo" title="MineLauncher"><svg><use href="#logo"/></svg></div>
+    <button class="tab on" data-page="play"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg>Главная</button>
+    <button class="tab" data-page="quick"><svg viewBox="0 0 24 24"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></svg>Быстро</button>
+    <button class="tab" data-page="library"><svg viewBox="0 0 24 24"><path d="M4 5h6v6H4zM14 5h6v6h-6zM4 15h6v4H4zM14 15h6v4h-6z"/></svg>Сборки</button>
+    <button class="tab" data-page="catalog"><svg viewBox="0 0 24 24"><path d="M11 4a7 7 0 100 14 7 7 0 000-14zM16 16l5 5"/></svg>Каталог</button>
+    <button class="tab" data-page="packs"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v10l-8 4-8-4V7zM4 7l8 4 8-4M12 11v10"/></svg>Готовые</button>
+    <button class="tab" data-page="skins"><svg viewBox="0 0 24 24"><path d="M8 3h8v6H8zM5 11h14v4h-3v6H8v-6H5z"/></svg>Скины</button>
+    <button class="tab" data-page="settings"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6"/></svg>Настройки</button>
+    <button class="tab" data-page="console"><svg viewBox="0 0 24 24"><path d="M4 6l6 6-6 6M12 19h8"/></svg>Консоль</button>
+    <div class="me" id="me" title="Аккаунт"><canvas id="me-head" width="32" height="32"></canvas><span id="me-name">—</span></div>
+  </nav>
+
+  <main>
+    <!-- Главная -->
+    <section class="page on" id="page-play">
+      <div class="play-grid">
+        <div class="pn hero">
+          <div class="slash"></div>
+          <div class="hello" id="hello"></div>
+          <div class="who" id="who">Создай сборку</div>
+          <div class="line"><span class="tag" id="who-kind">—</span><span class="muted small" id="who-meta"></span></div>
+          <div class="quote" id="quote"></div>
+        </div>
+        <div class="side">
+          <div class="pn">
+            <label class="l" for="home-inst">Сборка</label>
+            <select id="home-inst"></select>
+            <div class="row" style="margin-top:14px"><button class="link" id="home-new">Создать новую</button><button class="link" id="home-open">Открыть сборку</button></div>
+          </div>
+          <div class="pn">
+            <label class="l" for="ram">Оперативная память: <b id="ramval" style="color:var(--fg)">4 ГБ</b></label>
+            <input type="range" id="ram" min="1" max="16" step="1" value="4">
+            <p class="muted small" style="margin-top:10px">Для обычной игры хватает 4 ГБ, для тяжёлых сборок 6–8.</p>
+          </div>
+        </div>
+        <div class="playbar"><button class="btn" id="play">Играть</button></div>
+      </div>
+    </section>
+
+    <!-- Библиотека сборок -->
+    <section class="page" id="page-library">
+      <div class="top row">
+        <div class="grow"><h1>Сборки</h1><p class="muted">У каждой сборки своя версия игры, свой загрузчик и свои моды: они не мешают друг другу.</p></div>
+        <input type="text" id="lib-q" class="mini" placeholder="Поиск…" aria-label="Поиск сборок" spellcheck="false">
+        <select id="lib-sort" class="mini" aria-label="Сортировка"><option value="recent">Недавние</option><option value="name">По имени</option><option value="time">По времени игры</option><option value="fav">Избранные</option></select>
+        <button class="btn ghost" id="lib-import">Импорт из файла</button>
+        <button class="btn" id="lib-new">Создать сборку</button>
+      </div>
+      <div class="scroll"><div class="cards" id="lib-grid"></div></div>
+    </section>
+
+    <!-- Одна сборка -->
+    <section class="page" id="page-instance">
+      <div class="top">
+        <button class="link" id="inst-back">Назад к сборкам</button>
+        <div class="row" style="margin-top:8px">
+          <div class="ic big" id="inst-ico"></div>
+          <div class="grow"><h1 id="inst-title"></h1><div id="inst-tags" style="margin-top:6px"></div></div>
+          <button class="btn" id="inst-play">Играть</button>
+        </div>
+        <div class="seg" id="inst-tabs" style="margin:18px 0 0">
+          <button data-k="mod" class="on">Моды</button>
+          <button data-k="resourcepack">Ресурспаки</button>
+          <button data-k="shader">Шейдеры</button>
+          <button data-k="world">Миры</button>
+          <button data-k="settings">Настройки</button>
+        </div>
+      </div>
+      <div class="scroll">
+        <div id="inst-list"></div>
+        <div id="inst-settings" class="hidden">
+          <div class="grid2">
+            <div class="pn">
+              <h2>Основное</h2>
+              <div class="field"><label class="l" for="is-name">Название</label><input type="text" id="is-name"></div>
+              <div class="field"><label class="l" for="is-ram">Память: <b id="is-ramval" style="color:var(--fg)"></b></label><input type="range" id="is-ram" min="1" max="32" step="1"></div>
+              <div class="field" style="margin-bottom:0"><label class="l" for="is-jvm">Доп. аргументы Java (необязательно)</label><input type="text" id="is-jvm" placeholder="-XX:+UseG1GC" spellcheck="false"></div>
+            </div>
+            <div class="pn">
+              <h2>Действия</h2>
+              <div class="stack">
+                <button class="btn ghost block" id="is-folder">Открыть папку сборки</button>
+                <button class="btn ghost block" id="is-shots">Открыть скриншоты</button>
+                <button class="btn ghost block" id="is-icon">Сменить значок</button>
+                <button class="btn ghost block" id="is-flags">Оптимальные флаги Java</button>
+                <button class="btn ghost block" id="is-dup">Сделать копию</button>
+                <button class="btn ghost block" id="is-del">Удалить сборку</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row" id="inst-foot" style="margin-top:14px">
+        <button class="btn ghost" id="inst-add">Добавить из каталога</button>
+        <button class="btn ghost" id="inst-folder">Открыть папку</button>
+      </div>
+    </section>
+
+    <!-- Каталог и готовые сборки (одна страница, два режима) -->
+    <section class="page" id="page-catalog">
+      <div class="cat">
+        <aside class="pn filters">
+          <div id="cat-instbox">
+            <label class="l" for="cat-inst">Устанавливать в сборку</label>
+            <select id="cat-inst"></select>
+            <div style="height:16px"></div>
+          </div>
+          <label class="l">Источник</label>
+          <div class="seg" id="cat-src" style="margin-bottom:16px"><button data-s="modrinth" class="on">Modrinth</button><button data-s="curseforge">CurseForge</button></div>
+          <label class="l" for="cat-sort">Сортировка</label>
+          <select id="cat-sort">
+            <option value="downloads">По загрузкам</option>
+            <option value="relevance">По релевантности</option>
+            <option value="follows">По популярности</option>
+            <option value="updated">По обновлению</option>
+            <option value="newest">Сначала новые</option>
+          </select>
+          <div style="height:14px"></div>
+          <div class="hidden"><select id="cat-mc"></select>
+          <select id="cat-loader"><option value="">Любой</option><option value="fabric">Fabric</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option><option value="quilt">Quilt</option></select></div>
+        </aside>
+        <div class="cat-main">
+          <div class="cat-head">
+            <h1 id="cat-title">Каталог</h1>
+            <div class="seg" id="cat-tabs"><button data-t="market" class="on">Маркет</button><button data-t="installed">Установлено</button><button data-t="coll">Коллекция</button></div>
+          </div>
+          <div id="cat-kindbox" class="kind-row"><span class="l">Что скачать</span><div class="kind-list" id="cat-kinds"></div></div>
+          <input type="text" id="cat-q" class="searchbar" placeholder="Поиск по названию…" spellcheck="false" aria-label="Поиск">
+          <div id="cat-filters">
+            <div class="frow" id="fr-vers"><span class="l">Версия игры</span><div class="chips" id="cat-vers"></div></div>
+            <div class="frow" id="fr-loaders"><span class="l">Загрузчик</span><div class="chips" id="cat-loaders"></div></div>
+            <div class="frow" id="fr-cats"><span class="l">Категории</span><div class="chips wrapc" id="cat-cats"></div></div>
+            <div class="frow"><span class="l">Результатов на странице</span><div class="chips" id="cat-per"></div></div>
+          </div>
+          <div class="scroll" style="margin-top:14px">
+            <div class="msg" id="cat-msg"></div>
+            <div class="cards big" id="cat-grid"></div>
+            <div id="cat-list" class="hidden"></div>
+            <div class="center"><button class="btn ghost hidden" id="cat-more">Показать ещё</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Быстрый запуск -->
+    <section class="page" id="page-quick">
+      <div class="top row">
+        <div class="grow"><h1>Быстрый запуск</h1><p class="muted">Закрепи любимые сборки звёздочкой, и они запустятся одним нажатием.</p></div>
+      </div>
+      <div class="pn q-opts">
+        <div class="l" style="margin:0">После запуска игры лаунчер:</div>
+        <div class="seg" id="q-after" style="margin:0">
+          <button data-v="close">Закрывается</button>
+          <button data-v="min">Сворачивается</button>
+          <button data-v="stay">Остаётся открытым</button>
+        </div>
+      </div>
+      <div class="scroll">
+        <h2 style="margin-top:6px">Закреплённые</h2>
+        <div class="cards" id="q-fav"></div>
+        <h2 style="margin-top:30px">Все сборки</h2>
+        <div class="cards small" id="q-all"></div>
+      </div>
+    </section>
+
+    <!-- Скины -->
+    <section class="page" id="page-skins">
+      <div class="top"><h1>Скины</h1><p class="muted">Так тебя видят в игре. Скин меняется в твоём аккаунте.</p></div>
+      <div class="scroll"><div class="pn" id="host-skin-app"></div></div>
+    </section>
+
+    <!-- Настройки -->
+    <section class="page" id="page-settings">
+      <div class="top"><h1>Настройки</h1></div>
+      <div class="set">
+        <div class="set-nav" id="set-nav">
+          <button data-s="look" class="on">Внешний вид</button>
+          <button data-s="custom">Кастомизация</button>
+          <button data-s="fx">Эффекты</button>
+          <button data-s="screen">Экран и шрифт</button>
+          <button data-s="launch">Запуск</button>
+          <button data-s="acc">Аккаунт</button>
+          <button data-s="java">Java</button>
+          <button data-s="cat">Каталог</button>
+          <button data-s="upd">Обновления</button>
+          <button data-s="dev">Разработчик</button>
+        </div>
+        <div class="scroll set-body">
+
+          <!-- Внешний вид -->
+          <div class="sp" id="sp-look">
+            <div class="pn">
+              <h2>Вид интерфейса</h2>
+              <p class="muted small" style="margin-bottom:14px">Форма панелей, кнопок и рамок. Цвета выбираются ниже, в темах.</p>
+              <div class="looks" id="looks"></div>
+            </div>
+            <div class="pn">
+              <h2>Тема</h2>
+              <h3 class="grp">Классические</h3>
+              <div class="themes" id="themes-base"></div>
+              <h3 class="grp">Аниме</h3>
+              <div class="themes" id="themes-anime"></div>
+              <div class="field" style="margin-top:22px">
+                <label class="l">Цвет акцента</label>
+                <div class="sw" id="swatches"></div>
+              </div>
+            </div>
+            <div class="pn">
+              <h2>Мои пресеты</h2>
+              <p class="muted small" style="margin-bottom:12px">Сохрани текущий внешний вид (тему, вид, эффекты, шрифты) и переключайся между ними.</p>
+              <div class="row"><input type="text" id="pr-name" class="grow" placeholder="Название пресета" spellcheck="false"><button class="btn ghost" id="pr-save">Сохранить</button></div>
+              <div class="presets" id="presets"></div>
+            </div>
+          </div>
+
+          <!-- Кастомизация -->
+          <div class="sp hidden" id="sp-custom">
+            <div class="grid2">
+              <div class="pn">
+                <h2>Форма и плотность</h2>
+                <div class="field"><label class="l" for="r-radius">Скругление углов: <b id="r-radius-v"></b></label><input type="range" id="r-radius" min="0" max="32" step="1"></div>
+                <div class="field"><label class="l" for="r-opacity">Прозрачность панелей: <b id="r-opacity-v"></b></label><input type="range" id="r-opacity" min="30" max="100" step="1"></div>
+                <div class="field"><label class="l" for="r-blur">Размытие под панелями: <b id="r-blur-v"></b></label><input type="range" id="r-blur" min="0" max="30" step="1"></div>
+                <label class="check" style="margin-bottom:12px"><input type="checkbox" id="opt-compact">Компактный интерфейс</label>
+                <label class="check" style="margin-bottom:12px"><input type="checkbox" id="opt-right">Меню справа</label>
+                <label class="check"><input type="checkbox" id="opt-nolabel">Только значки в меню</label>
+              </div>
+            </div>
+            <div class="grid2" style="margin-top:26px">
+              <div class="pn">
+                <h2>Обои</h2>
+                <p class="muted small" style="margin-bottom:12px">Любая картинка на фон лаунчера: аниме-арт, фото, скриншот игры. Картинка остаётся только на твоём компьютере.</p>
+                <div class="row wrap" style="margin-bottom:16px"><button class="btn ghost" id="wall-pick">Выбрать картинку</button><button class="btn ghost" id="wall-off">Убрать</button></div>
+                <div class="field"><label class="l" for="wall-dim">Затемнение: <b id="wall-dim-v"></b></label><input type="range" id="wall-dim" min="0" max="90" step="1"></div>
+                <div class="field" style="margin-bottom:0"><label class="l" for="wall-blur">Размытие: <b id="wall-blur-v"></b></label><input type="range" id="wall-blur" min="0" max="20" step="1"></div>
+              </div>
+              <div class="pn">
+                <h2>Персонаж (маскот)</h2>
+                <p class="muted small" style="margin-bottom:12px">Поставь свою картинку-персонажа (лучше PNG без фона). Она будет стоять поверх интерфейса в углу и не мешает нажимать.</p>
+                <div class="row wrap" style="margin-bottom:16px"><button class="btn ghost" id="mascot-pick">Выбрать картинку</button><button class="btn ghost" id="mascot-off">Убрать</button><button class="btn ghost" id="art-accent">Взять цвет из картинки</button></div>
+                <div class="field"><label class="l" for="mascot-pos">Где стоит</label>
+                  <select id="mascot-pos"><option value="right">Справа внизу</option><option value="left">Слева внизу</option><option value="center">По центру</option></select></div>
+                <div class="field"><label class="l" for="mascot-size">Размер: <b id="mascot-size-v"></b></label><input type="range" id="mascot-size" min="20" max="100" step="1"></div>
+                <div class="field" style="margin-bottom:0"><label class="l" for="mascot-op">Видимость: <b id="mascot-op-v"></b></label><input type="range" id="mascot-op" min="10" max="100" step="1"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Эффекты -->
+          <div class="sp hidden" id="sp-fx">
+            <div class="grid2">
+              <div class="pn">
+                <h2>Фон</h2>
+                <div class="field">
+                  <label class="l" for="fx-mode">Анимация фона</label>
+                  <select id="fx-mode">
+                    <option value="ash">Пепел</option>
+                    <option value="rain">Дождь</option>
+                    <option value="cubes">Кубики</option>
+                    <option value="glitch">Помехи</option>
+                    <option value="sakura">Лепестки сакуры</option>
+                    <option value="stars">Звёзды и метеоры</option>
+                    <option value="hearts">Сердечки</option>
+                    <option value="sparkles">Искры</option>
+                    <option value="lines">Скорость (манга-линии)</option>
+                    <option value="off">Выключена</option>
+                  </select>
+                </div>
+                <div class="field"><label class="l" for="fx-int">Количество частиц: <b id="fx-int-v"></b></label><input type="range" id="fx-int" min="20" max="250" step="5"></div>
+                <div class="field"><label class="l" for="fx-spd">Скорость: <b id="fx-spd-v"></b></label><input type="range" id="fx-spd" min="20" max="250" step="5"></div>
+                <div class="field">
+                  <label class="l" for="kanji-ch">Иероглиф на фоне</label>
+                  <select id="kanji-ch">
+                    <option value="喰種">喰種 гуль</option><option value="桜">桜 сакура</option><option value="夜">夜 ночь</option><option value="星">星 звезда</option>
+                    <option value="愛">愛 любовь</option><option value="夢">夢 мечта</option><option value="光">光 свет</option><option value="鬼">鬼 демон</option><option value="刃">刃 клинок</option><option value="雪">雪 снег</option><option value="茶">茶 матча</option><option value="夕">夕 закат</option>
+                    <option value="__custom">Свой текст…</option>
+                  </select>
+                  <input type="text" id="kanji-own" class="hidden" maxlength="6" placeholder="До 6 символов" spellcheck="false" style="margin-top:8px">
+                </div>
+                <label class="check" style="margin-bottom:12px"><input type="checkbox" id="opt-kanji">Показывать иероглиф</label>
+                <label class="check" style="margin-bottom:12px"><input type="checkbox" id="opt-tone">Манга-точки (растр)</label>
+                <label class="check" style="margin-bottom:12px"><input type="checkbox" id="opt-motion">Анимации интерфейса</label>
+                                <label class="check"><input type="checkbox" id="opt-mono">Моноширинный шрифт</label>
+              </div>
+              <div class="pn">
+                <h2>Анимации</h2>
+                <div class="field"><label class="l" for="trans">Смена страниц</label>
+                  <select id="trans"><option value="fade">Плавное появление</option><option value="slide">Скольжение</option><option value="zoom">Приближение</option><option value="none">Без анимации</option></select></div>
+                <label class="check" style="margin-bottom:12px"><input type="checkbox" id="opt-hover">Карточки приподнимаются при наведении</label>
+                <label class="check" style="margin-bottom:12px"><input type="checkbox" id="opt-glow">Пульсирующее свечение панелей</label>
+                <label class="check" style="margin-bottom:12px"><input type="checkbox" id="opt-click">Искры при нажатии</label>
+                <label class="check" style="margin-bottom:12px"><input type="checkbox" id="opt-trail">След за курсором</label>
+                <label class="check" style="margin-bottom:12px"><input type="checkbox" id="opt-float">Персонаж плавно парит</label>
+                <label class="check" style="margin-bottom:12px"><input type="checkbox" id="opt-parallax">Персонаж следит за мышью</label>
+                <label class="check"><input type="checkbox" id="opt-intro">Заставка при запуске</label>
+              </div>
+            </div>
+            <div class="pn" style="margin-top:26px">
+              <h2>Кино-слой</h2>
+              <p class="muted small" style="margin-bottom:12px">Накладывается поверх всего и не мешает нажимать.</p>
+              <div class="row wrap">
+                <label class="check"><input type="checkbox" id="opt-vig">Виньетка</label>
+                <label class="check"><input type="checkbox" id="opt-scan">Строки как у старого монитора</label>
+                <label class="check"><input type="checkbox" id="opt-grain">Плёночное зерно</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Экран и шрифт -->
+          <div class="sp hidden" id="sp-screen">
+            <div class="grid2">
+              <div class="pn">
+                <h2>Масштаб и окно</h2>
+                <div class="field"><label class="l" for="zoom">Масштаб интерфейса: <b id="zoom-v"></b></label><input type="range" id="zoom" min="70" max="160" step="5"></div>
+                <div class="row wrap" style="margin-bottom:20px"><button class="btn ghost sm" data-zoom="85">85%</button><button class="btn ghost sm" data-zoom="100">100%</button><button class="btn ghost sm" data-zoom="115">115%</button><button class="btn ghost sm" data-zoom="130">130%</button></div>
+                <div class="field"><label class="l" for="win-size">Размер окна лаунчера</label>
+                  <select id="win-size">
+                    <option value="1120x720">1120 × 720 (по умолчанию)</option><option value="1280x800">1280 × 800</option><option value="1366x768">1366 × 768</option>
+                    <option value="1600x900">1600 × 900</option><option value="1920x1080">1920 × 1080</option><option value="0x0">На весь экран</option>
+                  </select></div>
+                <button class="btn ghost" id="win-apply">Применить размер</button>
+              </div>
+              <div class="pn">
+                <h2>Окно игры</h2>
+                <p class="muted small" style="margin-bottom:12px">Размер окна Minecraft при запуске.</p>
+                <label class="check" style="margin-bottom:14px"><input type="checkbox" id="g-full">Во весь экран</label>
+                <div class="row"><div class="grow"><label class="l" for="g-w">Ширина</label><input type="text" id="g-w" placeholder="по умолчанию" inputmode="numeric" spellcheck="false"></div><div class="grow"><label class="l" for="g-h">Высота</label><input type="text" id="g-h" placeholder="по умолчанию" inputmode="numeric" spellcheck="false"></div></div>
+                <div class="row wrap" style="margin-top:14px"><button class="btn ghost sm" data-res="854x480">854×480</button><button class="btn ghost sm" data-res="1280x720">1280×720</button><button class="btn ghost sm" data-res="1920x1080">1920×1080</button><button class="btn ghost sm" data-res="">Сбросить</button></div>
+              </div>
+            </div>
+            <div class="pn" style="margin-top:26px">
+              <h2>Шрифты</h2>
+              <div class="grid2" style="gap:22px">
+                <div class="field"><label class="l" for="font-body">Основной шрифт</label><select id="font-body"></select></div>
+                <div class="field"><label class="l" for="font-head">Шрифт заголовков и кнопок</label><select id="font-head"></select></div>
+              </div>
+              <div class="field"><label class="l" for="font-size">Размер текста: <b id="font-size-v"></b></label><input type="range" id="font-size" min="12" max="20" step="1"></div>
+              <div class="field"><label class="l" for="font-own">Свой шрифт по названию (он должен быть установлен в Windows)</label>
+                <div class="row"><input type="text" id="font-own" class="grow" placeholder="Например: Comic Sans MS" spellcheck="false"><button class="btn ghost" id="font-own-go">Применить</button></div></div>
+              <div class="row wrap"><button class="btn ghost" id="font-file">Добавить файл шрифта (.ttf .otf .woff)</button><button class="btn ghost" id="font-reset">Сбросить шрифты</button></div>
+              <div class="msg" id="font-msg"></div>
+              <div class="preview-font" id="font-prev">Аа Бб Ии Gg 123 — Быстрая бурая лиса прыгает через ленивого пса. 喰種 桜</div>
+            </div>
+          </div>
+
+          <!-- Запуск -->
+          <div class="sp hidden" id="sp-launch">
+            <div class="pn">
+              <h2>После запуска игры</h2>
+              <p class="muted small" style="margin-bottom:14px">Что делает лаунчер, когда Minecraft уже запускается.</p>
+              <div class="seg" id="s-after">
+                <button data-v="close">Закрывается</button>
+                <button data-v="min">Сворачивается</button>
+                <button data-v="stay">Остаётся открытым</button>
+              </div>
+              <p class="muted small" style="margin-bottom:18px" id="s-after-note"></p>
+              <label class="check" style="margin-bottom:12px"><input type="checkbox" id="opt-autolaunch">Сразу запускать последнюю сборку при открытии лаунчера</label>
+              <label class="check"><input type="checkbox" id="opt-confirmdel">Спрашивать подтверждение перед удалением</label>
+            </div>
+          </div>
+
+          <!-- Аккаунт -->
+          <div class="sp hidden" id="sp-acc">
+            <div class="pn">
+              <h2>Аккаунт</h2>
+              <p style="margin-bottom:6px">Сейчас: <b id="set-acc">—</b></p>
+              <p class="muted small" style="margin-bottom:16px" id="set-kind"></p>
+              <div class="row wrap" style="margin-bottom:18px">
+                <button class="btn ghost" id="set-out">Выйти</button>
+                <button class="btn ghost" id="set-wiz">Пройти настройку заново</button>
+              </div>
+              <div class="field" style="margin-bottom:0">
+                <label class="l" for="set-cid">Azure Client ID (для входа по лицензии)</label>
+                <input type="text" id="set-cid" spellcheck="false" placeholder="00000000-0000-0000-0000-000000000000">
+              </div>
+            </div>
+            <div class="pn" style="margin-top:26px">
+              <h2>Данные</h2>
+              <p class="muted" style="margin-bottom:14px">Игра, скины и Java хранятся в папке .minelauncher.</p>
+              <button class="btn ghost" id="set-folder">Открыть папку</button>
+            </div>
+          </div>
+
+          <!-- Java -->
+          <div class="sp hidden" id="sp-java">
+            <div class="pn"><h2>Java</h2><div id="host-java-set"></div></div>
+          </div>
+
+          <!-- Каталог -->
+          <div class="sp hidden" id="sp-cat">
+            <div class="pn">
+              <h2>Каталог</h2>
+              <p class="muted" style="margin-bottom:14px" id="cat-set-note">Modrinth работает сразу. CurseForge тоже работает сам, если в лаунчер вшит ключ. Если ключа нет, вставь свой (бесплатно на console.curseforge.com).</p>
+              <div class="field"><label class="l" for="set-cf">API-ключ CurseForge</label><input type="password" id="set-cf" spellcheck="false" autocomplete="off"></div>
+              <button class="btn ghost" id="set-cf-get">Получить ключ</button>
+            </div>
+          </div>
+
+          <!-- Обновления -->
+          <div class="sp hidden" id="sp-upd">
+            <div class="pn">
+              <h2>Обновления лаунчера</h2>
+              <p style="margin-bottom:6px">Установлена версия: <b id="upd-cur">—</b></p>
+              <p class="muted small" style="margin-bottom:16px" id="upd-state">Проверка ещё не выполнялась.</p>
+              <div class="row wrap" style="margin-bottom:18px">
+                <button class="btn ghost" id="upd-check">Проверить обновления</button>
+                <button class="btn hidden" id="upd-go">Обновить</button>
+              </div>
+              <label class="check"><input type="checkbox" id="opt-updauto">Проверять обновления при запуске</label>
+            </div>
+          </div>
+
+          <!-- Разработчик -->
+          <div class="sp hidden" id="sp-dev">
+            <div class="pn">
+              <h2>Режим разработчика</h2>
+              <p class="muted small" style="margin-bottom:14px">Для тех, кто хочет улучшать лаунчер: инструменты отладки, свой CSS и журнал команд.</p>
+              <label class="check"><input type="checkbox" id="dev-on">Включить режим разработчика</label>
+            </div>
+            <div id="dev-box" class="hidden">
+              <div class="pn" style="margin-top:26px">
+                <h2>Инструменты</h2>
+                <div class="row wrap">
+                  <button class="btn ghost" id="dev-tools">Открыть DevTools</button>
+                  <button class="btn ghost" id="dev-reload">Перезагрузить интерфейс</button>
+                  <button class="btn ghost" id="dev-reset">Сбросить все настройки</button>
+                </div>
+                <div class="msg" id="dev-msg"></div>
+              </div>
+              <div class="pn" style="margin-top:26px">
+                <h2>Свой CSS</h2>
+                <p class="muted small" style="margin-bottom:10px">Применяется сразу и сохраняется. Можно переопределять переменные: <code>--accent</code>, <code>--bg</code>, <code>--panel</code> и любые стили.</p>
+                <textarea id="dev-css" spellcheck="false" placeholder=":root { --accent: #ff4fa3; }"></textarea>
+              </div>
+              <div class="pn" style="margin-top:26px">
+                <h2>Настройки в виде JSON</h2>
+                <textarea id="dev-json" spellcheck="false"></textarea>
+                <div class="row wrap" style="margin-top:12px"><button class="btn ghost" id="dev-export">Показать текущие</button><button class="btn ghost" id="dev-import">Применить из поля</button></div>
+              </div>
+              <div class="pn" style="margin-top:26px">
+                <h2>Журнал команд к ядру</h2>
+                <pre id="dev-log"></pre>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Консоль -->
+    <section class="page" id="page-console">
+      <div class="top row"><div class="grow"><h1>Консоль</h1><p class="muted">Сообщения игры. Пригодятся, если что-то пошло не так.</p></div>
+        <input type="text" id="log-q" class="mini" placeholder="Фильтр…" aria-label="Фильтр" spellcheck="false">
+        <button class="btn ghost" id="log-copy">Копировать</button><button class="btn ghost" id="log-clear">Очистить</button></div>
+      <div id="log"></div>
+    </section>
+  </main>
+</div>
+
+<!-- ============ ОБЩИЕ ПАНЕЛИ (переезжают между экранами) ============ -->
+<div class="hidden">
+  <div id="skin-panel">
+    <div class="skin">
+      <div class="stage-skin">
+        <canvas id="sk-canvas" width="128" height="256"></canvas>
+        <span class="muted small" id="sk-name"></span>
+      </div>
+      <div>
+        <div class="opt on" id="opt-account">
+          <b>Скин аккаунта</b>
+          <div class="muted small" id="sk-acc-desc"></div>
+          <div class="row wrap sub" id="sk-model-row">
+            <label class="check"><input type="radio" name="model" value="classic" checked>Классика</label>
+            <label class="check"><input type="radio" name="model" value="slim">Тонкие руки</label>
+          </div>
+          <div class="row wrap sub" id="sk-acc-actions"></div>
+        </div>
+        <div class="msg" id="sk-msg"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="java-panel">
+    <div class="opt on" id="opt-jauto">
+      <b>Автоматически (рекомендуется)</b>
+      <div class="muted small">Лаунчер сам скачает подходящую Java для каждой версии игры.</div>
+    </div>
+    <div class="opt" id="opt-jpath">
+      <b>Указать путь</b>
+      <div class="muted small">Используется Java, которая уже есть на компьютере.</div>
+      <div class="sub" id="java-path-box">
+        <div class="row">
+          <input type="text" id="java-path" class="grow" placeholder="C:\Program Files\Java\jdk-21\bin\java.exe" spellcheck="false" aria-label="Путь к Java">
+          <button class="btn ghost" id="java-browse">Обзор</button>
+        </div>
+        <div class="row wrap" style="margin-top:12px">
+          <button class="btn ghost" id="java-detect">Найти на компьютере</button>
+          <button class="btn ghost" id="java-check">Проверить</button>
+        </div>
+        <div class="java-list" id="java-list"></div>
+      </div>
+    </div>
+    <div class="msg" id="java-msg"></div>
+  </div>
+</div>
+
+<div id="modal" class="hidden"><div class="pn" id="modal-body"></div></div>
+<div id="dock" class="pn hidden"><div id="dock-text" class="small"></div><div class="bar on" style="margin:8px 0 0"><i id="dock-fill"></i></div></div>
+<img id="mascot" alt="" class="hidden">
+<div id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

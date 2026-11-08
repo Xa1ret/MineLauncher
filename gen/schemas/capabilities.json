@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Базовые права главного окна","local":true,"windows":["main"],"permissions":["core:default","dialog:default"]}}
