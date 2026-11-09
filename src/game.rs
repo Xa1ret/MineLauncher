@@ -115,6 +115,7 @@ pub async fn launch(
     height: Option<u32>,
     fullscreen: Option<bool>,
     detach: Option<bool>,
+    server: Option<String>,
 ) -> Result<(), String> {
     let mut inst = instances::load_instance(&instance_id)?;
     let client = reqwest::Client::builder()
@@ -130,7 +131,12 @@ pub async fn launch(
     progress(&app, "Получаю данные версии…", 0.03);
     let vanilla = vanilla_json(&client, &base, &inst.mc_version).await?;
     let need = vanilla["javaVersion"]["majorVersion"].as_u64().unwrap_or(8);
-    let java = match java_path.filter(|s| !s.trim().is_empty()) {
+    let own_java = if inst.java_path.trim().is_empty() {
+        java_path
+    } else {
+        Some(inst.java_path.clone())
+    };
+    let java = match own_java.filter(|s| !s.trim().is_empty()) {
         Some(p) => p,
         None => {
             let comp = vanilla["javaVersion"]["component"]
@@ -362,6 +368,28 @@ pub async fn launch(
     args.append(&mut jvm);
     args.push(main_class);
     args.extend(game);
+    // сразу зайти на сервер
+    if let Some(sv) = server.as_ref().map(|x| x.trim()).filter(|x| !x.is_empty()) {
+        let minor: u32 = inst
+            .mc_version
+            .split('.')
+            .nth(1)
+            .and_then(|x| x.parse().ok())
+            .unwrap_or(0);
+        if inst.mc_version.starts_with("1.") && minor < 20 {
+            let (h, p) = match sv.rsplit_once(':') {
+                Some((h, p)) if p.parse::<u16>().is_ok() => (h.to_string(), p.to_string()),
+                _ => (sv.to_string(), "25565".to_string()),
+            };
+            args.push("--server".to_string());
+            args.push(h);
+            args.push("--port".to_string());
+            args.push(p);
+        } else {
+            args.push("--quickPlayMultiplayer".to_string());
+            args.push(sv.to_string());
+        }
+    }
     // размер окна игры из настроек лаунчера
     if fullscreen.unwrap_or(false) {
         args.push("--fullscreen".to_string());

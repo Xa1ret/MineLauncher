@@ -535,3 +535,47 @@ body.fx-float #mascot { animation: mfloat 5s ease-in-out infinite alternate; }
 #mascot { translate: var(--px, 0) var(--py, 0); transition: translate .25s ease-out; }
 .trail { position: fixed; z-index: 90; width: 8px; height: 8px; border-radius: 50%; pointer-events: none; background: var(--accent); animation: trail .6s ease-out forwards; }
 @keyframes trail { to { transform: scale(0); opacity: 0; } }
+
+/* ощущение настоящей программы, а не страницы в браузере */
+html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; cursor: default; }
+img, svg, canvas { -webkit-user-drag: none; user-drag: none; }
+button, .click, .tab, .theme, .look, select, input[type=range], input[type=checkbox], label.check { cursor: pointer; }
+input[type=text], input[type=password], textarea { cursor: text; }
+:focus:not(:focus-visible) { outline: none; }
+
+/* вкладок стало больше: меню прокручивается и сжимается на низких окнах */
+nav { overflow-y: auto; overflow-x: hidden; }
+nav::-webkit-scrollbar { width: 0; }
+@media (max-height: 800px) { .tab { padding: 5px 0 4px; } nav .logo svg { width: 38px; height: 38px; } }
+.sv { display: flex; flex-direction: column; gap: 10px; }
+.sv .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); margin-right: 8px; }
+.sv .dot.on { background: #3ddc97; box-shadow: 0 0 10px #3ddc97; }
+.sv .dot.off { background: var(--danger); }
+.sv .motd { color: var(--muted); font-size: 13px; min-height: 2.6em; }
+.upd-badge { font-size: 12px; padding: 2px 8px; background: var(--accent); color: var(--accent-fg); margin-left: 8px; }
+.sv .foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sv .foot select { flex: 1 1 100%; min-width: 0; }
+.sv .by { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* v0.5 */
+.set-nav { max-height: calc(100vh - 150px); overflow-y: auto; }
+.stat-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 8px; }
+.stat-tile { border: 2px solid var(--line, var(--fg)); padding: 12px 14px; background: var(--soft); }
+.stat-tile .v { font: 800 24px var(--display); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-days { display: flex; align-items: flex-end; gap: 6px; height: 130px; margin-bottom: 8px; }
+.st-days .dcol { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
+.st-days .dbar { width: 100%; background: var(--accent); min-height: 2px; }
+.st-days .dl { font-size: 11px; color: var(--muted); }
+.st-row { display: grid; grid-template-columns: minmax(80px, 200px) 1fr auto; gap: 12px; align-items: center; padding: 6px 0; }
+.st-row .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.st-row .tm { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.st-bar { height: 10px; background: var(--soft); } .st-bar i { display: block; height: 100%; background: var(--accent); }
+.keybtn { min-width: 150px; } .keybtn.cap { background: var(--accent); color: var(--accent-fg); }
+.cfg { display: grid; grid-template-columns: 240px 1fr; gap: 14px; height: 62vh; }
+.cfg-list { display: flex; flex-direction: column; gap: 6px; min-height: 0; } .cfg-list > div { overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.cfg-list button { text-align: left; border: 0; background: transparent; color: var(--fg); padding: 6px 8px; cursor: pointer; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cfg-list button:hover { background: var(--soft); } .cfg-list button.on { background: var(--accent); color: var(--accent-fg); }
+.cfg-main { display: flex; flex-direction: column; gap: 8px; min-height: 0; } .cfg-main textarea { flex: 1; font: 13px/1.45 ui-monospace, Consolas, monospace; resize: none; white-space: pre; }
+.crash-text { width: 100%; height: 38vh; font: 12px/1.45 ui-monospace, Consolas, monospace; resize: none; white-space: pre; }
+.skin-lib { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+.sk-thumb { width: 56px; height: 56px; image-rendering: pixelated; border: 2px solid transparent; cursor: pointer; background: var(--soft); } .sk-thumb.on, .sk-thumb:hover { border-color: var(--accent); }

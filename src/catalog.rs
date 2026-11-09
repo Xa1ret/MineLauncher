@@ -331,6 +331,7 @@ fn extract_world(bytes: Vec<u8>, saves: &Path, fallback_name: &str) -> Result<St
 
 struct Installed {
     title: String,
+    saved: String,
     deps: Vec<String>,
 }
 
@@ -430,7 +431,7 @@ async fn mr_install(
             }
         }
     }
-    Ok(Installed { title, deps })
+    Ok(Installed { title, saved, deps })
 }
 
 fn cf_download_url(f: &Value) -> Option<String> {
@@ -542,7 +543,7 @@ async fn cf_install(
             }
         }
     }
-    Ok(Installed { title, deps })
+    Ok(Installed { title, saved, deps })
 }
 
 #[tauri::command]
@@ -936,4 +937,404 @@ pub async fn import_pack(
     } else {
         install_cfpack(&app, &c, &cf_key, bytes, &stem, "").await
     }
+}
+
+// ---------------------------------------------------------------------------
+//  Обновление установленного
+// ---------------------------------------------------------------------------
+
+async fn mr_latest_name(c: &reqwest::Client, mc: &str, pid: &str, loader: &str) -> Option<String> {
+    let mut q: Vec<(&str, String)> = vec![];
+    if !mc.is_empty() {
+        q.push(("game_versions", format!("[\"{}\"]", mc)));
+    }
+    if !loader.is_empty() {
+        q.push(("loaders", format!("[\"{}\"]", loader)));
+    }
+    let v = mr_get(c, &format!("/project/{}/version", pid), &q)
+        .await
+        .ok()?;
+    let versions = v.as_array()?;
+    let ver = versions
+        .iter()
+        .find(|x| x["version_type"].as_str() == Some("release"))
+        .or(versions.first())?;
+    let files = ver["files"].as_array()?;
+    let f = files
+        .iter()
+        .find(|x| x["primary"].as_bool() == Some(true))
+        .or(files.first())?;
+    f["filename"].as_str().map(|s| s.to_string())
+}
+
+async fn cf_latest_name(
+    c: &reqwest::Client,
+    key: &str,
+    mc: &str,
+    pid: &str,
+    loader: &str,
+) -> Option<String> {
+    let mut q: Vec<(&str, String)> = vec![("pageSize", "50".to_string())];
+    if !mc.is_empty() {
+        q.push(("gameVersion", mc.to_string()));
+    }
+    if let Some(t) = cf_loader(loader) {
+        q.push(("modLoaderType", t.to_string()));
+    }
+    let v = cf_get(c, key, &format!("/v1/mods/{}/files", pid), &q)
+        .await
+        .ok()?;
+    let mut files = v["data"].as_array()?.clone();
+    files.sort_by(|a, b| {
+        let da = a["fileDate"].as_str().unwrap_or("");
+        let db = b["fileDate"].as_str().unwrap_or("");
+        db.cmp(da)
+    });
+    let f = files
+        .iter()
+        .find(|x| x["releaseType"].as_u64() == Some(1))
+        .or(files.first())?;
+    f["fileName"].as_str().map(|s| s.to_string())
+}
+
+fn content_folder(kind: &str) -> Result<&'static str, String> {
+    match kind {
+        "mod" => Ok("mods"),
+        "resourcepack" => Ok("resourcepacks"),
+        "shader" => Ok("shaderpacks"),
+        _ => Err("Для этого раздела обновления не проверяются".to_string()),
+    }
+}
+
+/// Ищет более новые версии установленных модов, ресурспаков или шейдеров
+#[tauri::command]
+pub async fn content_check_updates(
+    instance_id: String,
+    kind: String,
+    cf_key: String,
+) -> Result<Vec<Value>, String> {
+    let inst = instances::load_instance(&instance_id)?;
+    let folder = content_folder(&kind)?;
+    let c = client()?;
+    let loader = if kind == "mod" && inst.loader != "vanilla" {
+        inst.loader.clone()
+    } else {
+        String::new()
+    };
+    let dir = instances::dir_of(&instance_id).join(folder);
+    let recs: Vec<Value> = instances::read_records(&instance_id)
+        .into_iter()
+        .filter(|r| {
+            r["kind"].as_str() == Some(kind.as_str())
+                && r["project_id"].is_string()
+                && r["source"].is_string()
+        })
+        .collect();
+    let mc = inst.mc_version.clone();
+    let results: Vec<Option<Value>> = futures_util::stream::iter(recs.into_iter().map(|r| {
+        let c = c.clone();
+        let mc = mc.clone();
+        let loader = loader.clone();
+        let key = cf_key.clone();
+        let dir = dir.clone();
+        async move {
+            let file = r["file_name"].as_str()?.to_string();
+            let present =
+                dir.join(&file).exists() || dir.join(format!("{}.disabled", file)).exists();
+            if !present {
+                return None;
+            }
+            let pid = r["project_id"].as_str()?.to_string();
+            let src = r["source"].as_str()?.to_string();
+            let latest = if src == "modrinth" {
+                mr_latest_name(&c, &mc, &pid, &loader).await?
+            } else {
+                cf_latest_name(&c, &key, &mc, &pid, &loader).await?
+            };
+            if latest == file {
+                return None;
+            }
+            Some(json!({
+                "file_name": file,
+                "title": r["title"],
+                "project_id": pid,
+                "source": src,
+                "latest": latest
+            }))
+        }
+    }))
+    .buffer_unordered(8)
+    .collect()
+    .await;
+    Ok(results.into_iter().flatten().collect())
+}
+
+/// Ставит свежую версию и удаляет старый файл
+#[tauri::command]
+pub async fn content_update(
+    app: AppHandle,
+    instance_id: String,
+    kind: String,
+    source: String,
+    project_id: String,
+    old_file: String,
+    cf_key: String,
+) -> Result<String, String> {
+    instances::safe_file(&old_file)?;
+    let folder = content_folder(&kind)?;
+    let inst = instances::load_instance(&instance_id)?;
+    let c = client()?;
+    let loader = if kind == "mod" && inst.loader != "vanilla" {
+        inst.loader.clone()
+    } else {
+        String::new()
+    };
+    let none: Option<String> = None;
+    let it = if source == "modrinth" {
+        mr_install(&c, &inst, &kind, &project_id, &loader, &none).await?
+    } else {
+        cf_install(&c, &cf_key, &inst, &kind, &project_id, &loader, &none).await?
+    };
+    if it.saved != old_file {
+        let dir = instances::dir_of(&instance_id).join(folder);
+        let old_dis = dir.join(format!("{}.disabled", old_file));
+        let was_disabled = old_dis.exists();
+        let _ = std::fs::remove_file(dir.join(&old_file));
+        let _ = std::fs::remove_file(&old_dis);
+        instances::remove_record(&instance_id, &old_file);
+        if was_disabled {
+            let _ = std::fs::rename(
+                dir.join(&it.saved),
+                dir.join(format!("{}.disabled", it.saved)),
+            );
+        }
+    }
+    progress(&app, "Готово", 1.0);
+    Ok(it.title)
+}
+
+// ---------------------------------------------------------------------------
+//  Экспорт сборки в .mrpack
+// ---------------------------------------------------------------------------
+
+fn add_dir<W: std::io::Write + std::io::Seek>(
+    zw: &mut zip::ZipWriter<W>,
+    dir: &Path,
+    prefix: &str,
+    opts: zip::write::SimpleFileOptions,
+    count: &mut u32,
+) -> Result<(), String> {
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return Ok(());
+    };
+    for en in rd.flatten() {
+        let name = en.file_name().to_string_lossy().to_string();
+        let path = en.path();
+        let rel = format!("{}/{}", prefix, name);
+        if path.is_dir() {
+            add_dir(zw, &path, &rel, opts.clone(), count)?;
+        } else {
+            zw.start_file(rel, opts.clone()).map_err(e)?;
+            let mut fh = std::fs::File::open(&path).map_err(e)?;
+            std::io::copy(&mut fh, zw).map_err(e)?;
+            *count += 1;
+        }
+    }
+    Ok(())
+}
+
+/// Сохраняет сборку в файл .mrpack: его можно отправить другу и импортировать
+#[tauri::command]
+pub async fn export_instance(
+    instance_id: String,
+    dest: String,
+    include_worlds: bool,
+) -> Result<String, String> {
+    let inst = instances::load_instance(&instance_id)?;
+    let idir = instances::dir_of(&instance_id);
+    let mut dest = PathBuf::from(dest.trim().trim_matches('"'));
+    let is_mrpack = dest
+        .extension()
+        .and_then(|x| x.to_str())
+        .map(|x| x.eq_ignore_ascii_case("mrpack"))
+        .unwrap_or(false);
+    if !is_mrpack {
+        dest.set_extension("mrpack");
+    }
+    tokio::task::spawn_blocking(move || -> Result<String, String> {
+        use std::io::Write;
+        let file = std::fs::File::create(&dest).map_err(e)?;
+        let mut zw = zip::ZipWriter::new(file);
+        let opts = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        let mut deps = serde_json::Map::new();
+        deps.insert("minecraft".to_string(), json!(inst.mc_version));
+        match inst.loader.as_str() {
+            "fabric" => {
+                deps.insert("fabric-loader".to_string(), json!(inst.loader_version));
+            }
+            "quilt" => {
+                deps.insert("quilt-loader".to_string(), json!(inst.loader_version));
+            }
+            "neoforge" => {
+                deps.insert("neoforge".to_string(), json!(inst.loader_version));
+            }
+            "forge" => {
+                let v = inst
+                    .loader_version
+                    .splitn(2, '-')
+                    .nth(1)
+                    .unwrap_or(inst.loader_version.as_str())
+                    .to_string();
+                deps.insert("forge".to_string(), json!(v));
+            }
+            _ => {}
+        }
+        let index = json!({
+            "formatVersion": 1,
+            "game": "minecraft",
+            "versionId": "1.0.0",
+            "name": inst.name,
+            "summary": "Экспорт из MineLauncher",
+            "files": [],
+            "dependencies": deps
+        });
+        zw.start_file("modrinth.index.json", opts.clone())
+            .map_err(e)?;
+        zw.write_all(serde_json::to_string_pretty(&index).map_err(e)?.as_bytes())
+            .map_err(e)?;
+        let mut count: u32 = 0;
+        let mut dirs = vec!["mods", "config", "resourcepacks", "shaderpacks"];
+        if include_worlds {
+            dirs.push("saves");
+        }
+        for d in dirs {
+            add_dir(
+                &mut zw,
+                &idir.join(d),
+                &format!("overrides/{}", d),
+                opts.clone(),
+                &mut count,
+            )?;
+        }
+        for f in ["options.txt", "servers.dat", "minelauncher.content.json"] {
+            let p = idir.join(f);
+            if p.is_file() {
+                zw.start_file(format!("overrides/{}", f), opts.clone())
+                    .map_err(e)?;
+                let mut fh = std::fs::File::open(&p).map_err(e)?;
+                std::io::copy(&mut fh, &mut zw).map_err(e)?;
+                count += 1;
+            }
+        }
+        zw.finish().map_err(e)?;
+        Ok(format!(
+            "Сохранено в {} ({} файлов)",
+            dest.to_string_lossy(),
+            count
+        ))
+    })
+    .await
+    .map_err(e)?
+}
+
+/// Проверяет моды Modrinth: каких обязательных зависимостей не хватает и какие моды конфликтуют
+#[tauri::command]
+pub async fn content_check_deps(instance_id: String) -> Result<Value, String> {
+    let inst = instances::load_instance(&instance_id)?;
+    let c = client()?;
+    let loader = if inst.loader != "vanilla" {
+        inst.loader.clone()
+    } else {
+        String::new()
+    };
+    let dir = instances::dir_of(&instance_id).join("mods");
+    let recs: Vec<Value> = instances::read_records(&instance_id)
+        .into_iter()
+        .filter(|r| {
+            r["kind"].as_str() == Some("mod")
+                && r["source"].as_str() == Some("modrinth")
+                && r["project_id"].is_string()
+        })
+        .filter(|r| {
+            // отключённые моды в проверке не участвуют
+            r["file_name"]
+                .as_str()
+                .map(|f| dir.join(f).exists())
+                .unwrap_or(false)
+        })
+        .collect();
+    let installed: HashSet<String> = instances::read_records(&instance_id)
+        .into_iter()
+        .filter_map(|r| r["project_id"].as_str().map(|s| s.to_string()))
+        .collect();
+    let mc = inst.mc_version.clone();
+    let found: Vec<(String, String, String, String)> =
+        futures_util::stream::iter(recs.into_iter().map(|r| {
+            let c = c.clone();
+            let mc = mc.clone();
+            let loader = loader.clone();
+            async move {
+                let mut out: Vec<(String, String, String, String)> = vec![];
+                let pid = r["project_id"].as_str().unwrap_or("").to_string();
+                let title = r["title"].as_str().unwrap_or("").to_string();
+                let mut q: Vec<(&str, String)> = vec![];
+                if !mc.is_empty() {
+                    q.push(("game_versions", format!("[\"{}\"]", mc)));
+                }
+                if !loader.is_empty() {
+                    q.push(("loaders", format!("[\"{}\"]", loader)));
+                }
+                if let Ok(v) = mr_get(&c, &format!("/project/{}/version", pid), &q).await {
+                    if let Some(ver) = v.as_array().and_then(|a| a.first()) {
+                        for d in ver["dependencies"].as_array().cloned().unwrap_or_default() {
+                            let ty = d["dependency_type"].as_str().unwrap_or("");
+                            if let Some(dp) = d["project_id"].as_str() {
+                                if ty == "required" || ty == "incompatible" {
+                                    out.push((
+                                        ty.to_string(),
+                                        title.clone(),
+                                        pid.clone(),
+                                        dp.to_string(),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+                out
+            }
+        }))
+        .buffer_unordered(8)
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
+        .flatten()
+        .collect();
+    // названия проектов-зависимостей
+    let mut ids: Vec<String> = found.iter().map(|x| x.3.clone()).collect();
+    ids.sort();
+    ids.dedup();
+    let mut names: std::collections::HashMap<String, String> = Default::default();
+    if !ids.is_empty() {
+        let arr = serde_json::to_string(&ids).map_err(e)?;
+        if let Ok(v) = mr_get(&c, "/projects", &[("ids", arr)]).await {
+            for p in v.as_array().cloned().unwrap_or_default() {
+                if let (Some(id), Some(t)) = (p["id"].as_str(), p["title"].as_str()) {
+                    names.insert(id.to_string(), t.to_string());
+                }
+            }
+        }
+    }
+    let mut missing: Vec<Value> = vec![];
+    let mut conflicts: Vec<Value> = vec![];
+    for (ty, who, who_id, dep) in found {
+        let dep_name = names.get(&dep).cloned().unwrap_or_else(|| dep.clone());
+        if ty == "required" && !installed.contains(&dep) {
+            missing.push(json!({ "mod": who, "needs": dep_name, "project_id": dep }));
+        } else if ty == "incompatible" && installed.contains(&dep) && dep != who_id {
+            conflicts.push(json!({ "mod": who, "with": dep_name }));
+        }
+    }
+    Ok(json!({ "missing": missing, "conflicts": conflicts }))
 }

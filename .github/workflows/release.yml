@@ -13,6 +13,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # Сжимаем и запутываем код интерфейса: внутри установщика он нечитаем
+      - name: Minify UI
+        shell: bash
+        run: |
+          cd ui
+          for f in app.js extras.js i18n.js; do
+            npx --yes terser@5 "$f" --compress passes=2 --mangle -o "$f.min" && mv "$f.min" "$f"
+          done
+          npx --yes csso-cli@4 style.css -o style.min.css && mv style.min.css style.css
+          npx --yes html-minifier-terser@7 index.html --collapse-whitespace --remove-comments -o index.min.html && mv index.min.html index.html
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

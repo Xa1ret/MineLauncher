@@ -45,6 +45,21 @@ const rawInvoke = T ? T.core.invoke : async (cmd, a = {}) => {
     case 'check_java': return '21.0.7';
     case 'install_art': case 'install_font': return null;
     case 'app_version': return '0.4.0';
+    case 'is_dev_build': return true;
+    case 'config_list': return [{ path: '../options.txt', size: 900 }, { path: 'sodium-options.json', size: 400 }, { path: 'fabric/config.toml', size: 120 }];
+    case 'config_read': return '# demo\nfov=70\nrenderDistance=12\n';
+    case 'config_write': return null;
+    case 'crash_info': return { crash_name: 'crash-2026-11-09.txt', crash_age: 5, crash: '---- Minecraft Crash Report ----\nDescription: Exception in server tick loop\njava.lang.NullPointerException at com.example.mod.Thing.tick(Thing.java:42)', log: '', launcher_log: '' };
+    case 'open_crash_folder': case 'open_url': return null;
+    case 'content_check_deps': return { missing: [{ mod: 'Create', needs: 'Flywheel', project_id: 'x' }], conflicts: [{ mod: 'Sodium', with: 'Rubidium' }] };
+    case 'stats_get': return { days: { [new Date().toISOString().slice(0, 10)]: 5400, [new Date(Date.now() - 86400000).toISOString().slice(0, 10)]: 9000, [new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10)]: 2400 }, launches: { demo1: 7 } };
+    case 'skin_lib_list': return demo.skins || [];
+    case 'skin_lib_add': return 'skin.png';
+    case 'skin_lib_delete': case 'skin_lib_apply': return null;
+    case 'content_check_updates': return [{ file_name: 'sodium.jar', title: 'Sodium', project_id: 'x', source: 'modrinth', latest: 'sodium-new.jar' }];
+    case 'content_update': await sleep(500); return 'Sodium';
+    case 'export_instance': return 'Сохранено (12 файлов)';
+    case 'server_status': await sleep(400); return { online: a.address.startsWith('a'), players: 128, max: 500, version: '1.21.4', motd: 'Добро пожаловать на сервер', icon: null };
     case 'check_update': return S.get('demoUpd', false) ? { available: true, version: '0.5.0', current: '0.4.0', notes: 'Новые темы и быстрый запуск\nИсправлены мелкие ошибки' } : { available: false };
     case 'install_update': await sleep(800); return null;
     case 'launch': throw 'Это демо в браузере. Запусти приложение через cargo tauri dev.';
@@ -65,6 +80,12 @@ const listen = T ? T.event.listen : async () => {};
 async function pickFile(filters) {
   if (!T || !T.dialog) return null;
   try { const r = await T.dialog.open({ multiple: false, filters }); return typeof r === 'string' ? r : (r && r.path) || null; }
+  catch { return null; }
+}
+
+async function saveFile(defaultPath, filters) {
+  if (!T || !T.dialog || !T.dialog.save) return null;
+  try { const r = await T.dialog.save({ defaultPath, filters }); return typeof r === 'string' ? r : (r && r.path) || null; }
   catch { return null; }
 }
 
@@ -337,6 +358,7 @@ function showSettingsTab(t) {
   document.querySelectorAll('.sp').forEach(p => p.classList.toggle('hidden', p.id !== 'sp-' + t));
   if (t === 'java') { mount('java-panel', 'host-java-set'); refreshJava(); }
   if (t === 'upd') { invoke('app_version').then(v => { $('upd-cur').textContent = v; }).catch(() => {}); if (UPD) showUpdState(); }
+  if (typeof exTab === 'function') exTab(t);
   if (t === 'dev') { const n = $('dev-log'); n.textContent = DEVLOG.join('\n'); }
 }
 function showDev() { $('dev-box').classList.toggle('hidden', !P.dev); }
@@ -431,6 +453,7 @@ async function refreshSkin() {
   else { b.textContent = 'Сменить скин на ely.by'; b.onclick = () => invoke('open_site', { page: 'ely_skins' }).catch(x => say('sk-msg', errText(x), 'err')); }
   box.appendChild(b);
   drawSkin($('sk-canvas'), await loadImg(acc.skin_url));
+  if (typeof exSkins === 'function') exSkins();
 }
 document.querySelectorAll('input[name=model]').forEach(r => r.onchange = () => S.set('skinSlim', r.value === 'slim' && r.checked));
 async function uploadMs() {
@@ -548,6 +571,7 @@ function go(page) {
   if (page === 'skins') { mount('skin-panel', 'host-skin-app'); refreshSkin(); }
   if (page === 'settings') { $('set-cid').value = S.get('msCid', ''); showSettingsTab(S.get('setTab', 'look')); }
   if (page === 'quick') renderQuick();
+  if (page === 'servers') renderServers(true);
   if (page === 'library') renderLibrary();
   if (page === 'catalog' || page === 'packs') enterCatalog(page === 'packs');
 }
@@ -617,16 +641,18 @@ listen('log', e => log(e.payload));
 listen('game-exit', e => {
   log('--- Игра закрыта, код ' + e.payload + ' ---');
   $('play').disabled = false; $('inst-play').disabled = false; hideDock(); loadInstances().then(() => refreshHome());
-  if (e.payload !== 0) toast('Игра завершилась с ошибкой (код ' + e.payload + '). Подробности во вкладке «Консоль».');
+  if (e.payload !== 0) toast('Игра завершилась с ошибкой (код ' + e.payload + ').');
+  if (typeof exOnExit === 'function') exOnExit(e.payload);
 });
 const num = v => { const n = parseInt(v, 10); return n > 0 ? n : null; };
-async function launchInst(id) {
+async function launchInst(id, server) {
   const btns = [$('play'), $('inst-play')];
   btns.forEach(b => b.disabled = true); $('play').textContent = 'Запуск…';
   showDock('Подготовка…', 0.01);
   const after = P.after;
   try {
-    await invoke('launch', { instanceId: id, javaPath: javaArg(), width: num(P.gw), height: num(P.gh), fullscreen: P.gfull, detach: after === 'close' });
+    await invoke('launch', { instanceId: id, javaPath: javaArg(), width: num(P.gw), height: num(P.gh), fullscreen: P.gfull, detach: after === 'close', server: server || null });
+    if (typeof exOnLaunch === 'function') exOnLaunch(id);
     $('play').textContent = 'Игра запущена'; setTimeout(hideDock, 2500);
     if (after === 'close') { toast('Игра запускается. Лаунчер закроется…'); await sleep(2500); invoke('exit_app').catch(() => {}); btns.forEach(b => b.disabled = false); }
     else if (after === 'min') invoke('minimize_window').catch(() => {});
@@ -771,7 +797,7 @@ async function renderInst() {
   const isSet = instTab === 'settings';
   $('inst-list').classList.toggle('hidden', isSet); $('inst-settings').classList.toggle('hidden', !isSet); $('inst-foot').classList.toggle('hidden', isSet);
   if (isSet) {
-    $('is-name').value = i.name; $('is-ram').value = Math.round(i.ram_mb / 1024); $('is-ramval').textContent = $('is-ram').value + ' ГБ'; $('is-jvm').value = i.jvm_args || '';
+    $('is-name').value = i.name; $('is-ram').value = Math.round(i.ram_mb / 1024); $('is-ramval').textContent = $('is-ram').value + ' ГБ'; $('is-jvm').value = i.jvm_args || ''; $('is-java').value = i.java_path || '';
     return;
   }
   const list = $('inst-list'); list.innerHTML = '';
@@ -785,7 +811,13 @@ async function renderInst() {
     const r = el('div', 'li' + (it.enabled ? '' : ' off'));
     if (instTab !== 'world') { const cb = el('input'); cb.type = 'checkbox'; cb.checked = it.enabled; cb.title = it.enabled ? 'Выключить' : 'Включить'; cb.onchange = async () => { try { await invoke('content_toggle', { id: instId, kind: instTab, fileName: it.file_name }); } catch (e) { toast(errText(e)); } renderInst(); }; r.appendChild(cb); }
     r.appendChild(icon(it.title, 'sm', it.icon));
+    const base = it.file_name.replace(/\.disabled$/, ''); const up = UPDS_FOR === instId + ':' + instTab ? UPDS.find(u => u.file_name === base) : null;
     const t = el('div', 't'); t.append(el('b', '', it.title), el('span', '', it.file_name + ' · ' + fmtSize(it.size) + (it.source ? ' · ' + (it.source === 'modrinth' ? 'Modrinth' : 'CurseForge') : ''))); r.appendChild(t);
+    if (up) {
+      const bd = el('span', 'upd-badge', 'Новая версия'); t.firstChild.appendChild(bd);
+      const ub = el('button', 'btn sm', 'Обновить'); ub.onclick = async () => { ub.disabled = true; ub.textContent = '…'; try { await invoke('content_update', { instanceId: instId, kind: instTab, source: up.source, projectId: up.project_id, oldFile: up.file_name, cfKey: cfKey() }); UPDS = UPDS.filter(x => x !== up); toast('«' + it.title + '» обновлён'); } catch (e) { toast(errText(e)); } renderInst(); };
+      r.appendChild(ub);
+    }
     const x = el('button', 'x', 'Удалить');
     x.onclick = async () => { if (await confirmBox('Удалить «' + it.title + '»?')) { try { await invoke('content_delete', { id: instId, kind: instTab, fileName: it.file_name }); } catch (e) { toast(errText(e)); } renderInst(); } };
     r.appendChild(x); list.appendChild(r);
@@ -795,6 +827,25 @@ $('inst-add').onclick = () => openCatalogFor(instId, instTab);
 $('inst-folder').onclick = () => invoke('open_instance_folder', { id: instId, sub: TAB_SUB[instTab] || null }).catch(e => toast(errText(e)));
 $('is-folder').onclick = () => invoke('open_instance_folder', { id: instId, sub: null }).catch(e => toast(errText(e)));
 $('is-shots').onclick = () => invoke('open_instance_folder', { id: instId, sub: 'screenshots' }).catch(e => toast(errText(e)));
+$('is-export').onclick = () => {
+  const i = byId(instId); if (!i) return;
+  openModal(b => {
+    b.appendChild(el('h2', '', 'Экспорт сборки'));
+    b.appendChild(el('p', 'muted', 'Лаунчер соберёт файл .mrpack с модами, настройками, ресурспаками и шейдерами. Друг импортирует его в своём лаунчере кнопкой «Импорт из файла».'));
+    const row = el('div', 'row wrap'); row.style.cssText = 'justify-content:flex-end;margin-top:18px';
+    const go1 = async withWorlds => {
+      closeModal();
+      const dest = await saveFile(i.name.replace(/[\\/:*?"<>|]/g, '_') + '.mrpack', [{ name: 'Сборка Modrinth', extensions: ['mrpack'] }]);
+      if (!dest) return;
+      const r = await busy('Собираю файл…', () => invoke('export_instance', { instanceId: i.id, dest, includeWorlds: withWorlds }));
+      if (r) toast(r);
+    };
+    const no = el('button', 'btn ghost', 'Отмена'); no.onclick = closeModal;
+    const w = el('button', 'btn ghost', 'С мирами'); w.onclick = () => go1(true);
+    const nw = el('button', 'btn', 'Без миров'); nw.onclick = () => go1(false);
+    row.append(no, w, nw); b.appendChild(row);
+  });
+};
 $('is-dup').onclick = async () => { const c = await busy('Копирую сборку…', () => invoke('duplicate_instance', { id: instId })); if (c) { toast('Копия создана'); await loadInstances(); } };
 $('is-del').onclick = async () => { const i = byId(instId); if (i && await deleteInst(i)) go('library'); };
 $('is-flags').onclick = () => { $('is-jvm').value = '-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1'; saveInstSettings(); toast('Флаги вписаны. Они ускоряют работу сборщика мусора.'); };
@@ -815,7 +866,7 @@ let setT;
 async function saveInstSettings() {
   clearTimeout(setT);
   setT = setTimeout(async () => {
-    try { const u = await invoke('update_instance', { id: instId, name: $('is-name').value, ramMb: +$('is-ram').value * 1024, jvmArgs: $('is-jvm').value }); const i = byId(instId); if (i) Object.assign(i, u); $('inst-title').textContent = u.name; await loadInstances(); }
+    try { const u = await invoke('update_instance', { id: instId, name: $('is-name').value, ramMb: +$('is-ram').value * 1024, jvmArgs: $('is-jvm').value, javaPath: $('is-java').value }); const i = byId(instId); if (i) Object.assign(i, u); $('inst-title').textContent = u.name; await loadInstances(); }
     catch (e) { toast(errText(e)); }
   }, 500);
 }
@@ -898,6 +949,7 @@ function setCatTab(t) {
 }
 $('cat-tabs').querySelectorAll('button').forEach(b => b.onclick = () => setCatTab(b.dataset.t));
 let instFilter = 'all';
+let UPDS = [], UPDS_FOR = '';
 async function renderCatList() {
   const box = $('cat-list'); box.innerHTML = ''; const q = $('cat-q').value.trim().toLowerCase();
   if (C.tab === 'coll') {
@@ -911,7 +963,28 @@ async function renderCatList() {
   const bar = el('div', 'lrow-bar'); const ch = el('div', 'chips');
   chipRow(ch, [['all', 'Все'], ['on', 'Включённые'], ['off', 'Выключенные']], instFilter, v => { instFilter = v; renderCatList(); });
   const add = el('button', 'btn ghost sm', 'Открыть папку'); add.onclick = () => invoke('open_instance_folder', { id, sub: TAB_SUB[C.kind] || null }).catch(e => toast(errText(e)));
-  bar.append(ch, add); box.appendChild(bar);
+  bar.append(ch, add);
+  if (['mod', 'resourcepack', 'shader'].includes(C.kind)) {
+    const ck = el('button', 'btn sm', 'Проверить обновления');
+    ck.onclick = async () => {
+      ck.disabled = true; ck.textContent = 'Проверяю…';
+      try { UPDS = await invoke('content_check_updates', { instanceId: id, kind: C.kind, cfKey: cfKey() }); UPDS_FOR = id + ':' + C.kind; toast(UPDS.length ? 'Найдено обновлений: ' + UPDS.length : 'Всё свежее'); }
+      catch (e) { toast(errText(e)); }
+      renderCatList();
+    };
+    bar.appendChild(ck);
+    if (C.kind === 'mod' && typeof exInstalledBar === 'function') exInstalledBar(bar, id);
+    if (UPDS_FOR === id + ':' + C.kind && UPDS.length) {
+      const all = el('button', 'btn sm', 'Обновить всё (' + UPDS.length + ')');
+      all.onclick = async () => {
+        all.disabled = true; let ok = 0;
+        for (const u of UPDS.slice()) { all.textContent = 'Обновляю ' + (ok + 1) + ' из ' + UPDS.length + '…'; try { await invoke('content_update', { instanceId: id, kind: C.kind, source: u.source, projectId: u.project_id, oldFile: u.file_name, cfKey: cfKey() }); ok++; UPDS = UPDS.filter(x => x.file_name !== u.file_name); } catch (e) { toast(errText(e)); } }
+        toast('Обновлено: ' + ok); renderCatList();
+      };
+      bar.appendChild(all);
+    }
+  }
+  box.appendChild(bar);
   let items = [];
   try { items = await invoke('instance_content', { id, kind: C.kind }); } catch (e) { box.appendChild(el('div', 'empty', errText(e))); return; }
   items = items.filter(it => (instFilter === 'all' || (instFilter === 'on') === it.enabled) && (!q || it.title.toLowerCase().includes(q) || it.file_name.toLowerCase().includes(q)));
@@ -921,6 +994,13 @@ async function renderCatList() {
     if (C.kind !== 'world') { const cb = el('input'); cb.type = 'checkbox'; cb.checked = it.enabled; cb.onchange = async () => { try { await invoke('content_toggle', { id, kind: C.kind, fileName: it.file_name }); } catch (e) { toast(errText(e)); } renderCatList(); }; r.appendChild(cb); }
     r.appendChild(icon(it.title, 'sm', it.icon));
     const t = el('div', 't'); t.append(el('b', '', it.title), el('span', '', it.file_name + ' · ' + fmtSize(it.size) + (it.source ? ' · ' + (it.source === 'modrinth' ? 'Modrinth' : 'CurseForge') : ''))); r.appendChild(t);
+    const up = UPDS_FOR === id + ':' + C.kind ? UPDS.find(u => u.file_name === it.file_name.replace(/\.disabled$/, '')) : null;
+    if (up) {
+      t.firstChild.appendChild(el('span', 'upd-badge', 'Новая версия'));
+      const ub = el('button', 'btn sm', 'Обновить');
+      ub.onclick = async () => { ub.disabled = true; ub.textContent = '…'; try { await invoke('content_update', { instanceId: id, kind: C.kind, source: up.source, projectId: up.project_id, oldFile: up.file_name, cfKey: cfKey() }); UPDS = UPDS.filter(x => x !== up); toast('«' + it.title + '» обновлён'); } catch (e) { toast(errText(e)); } renderCatList(); };
+      r.appendChild(ub);
+    }
     const x = el('button', 'x', 'Удалить'); x.onclick = async () => { if (await confirmBox('Удалить «' + it.title + '»?')) { try { await invoke('content_delete', { id, kind: C.kind, fileName: it.file_name }); } catch (e) { toast(errText(e)); } renderCatList(); } };
     r.appendChild(x); box.appendChild(r);
   });
@@ -1022,11 +1102,23 @@ addEventListener('pointermove', e => {
   if (P.motion && P.trail && performance.now() - lastTrail > 40) { lastTrail = performance.now(); const n = el('span', 'trail'); n.style.left = e.clientX - 4 + 'px'; n.style.top = e.clientY - 4 + 'px'; document.body.appendChild(n); setTimeout(() => n.remove(), 600); }
   if (P.parallax && P.motion) { const m = $('mascot'); m.style.setProperty('--px', ((e.clientX / innerWidth - .5) * -26).toFixed(1) + 'px'); m.style.setProperty('--py', ((e.clientY / innerHeight - .5) * -16).toFixed(1) + 'px'); }
 });
+/* ---- как у настоящей программы: без меню и горячих клавиш браузера ---- */
+addEventListener('contextmenu', e => { if (!(P.dev && window.__devBuild) && !/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) e.preventDefault(); });
+addEventListener('keydown', e => {
+  if (P.dev) return;
+  const k = e.key.toLowerCase();
+  if (e.key === 'F5' || e.key === 'F12' || (e.ctrlKey && ['r', 'p', 's', 'u', 'g', 'f'].includes(k)) || (e.ctrlKey && e.shiftKey && ['i', 'j', 'c'].includes(k))) e.preventDefault();
+});
+addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
+addEventListener('keydown', e => { if (!P.dev && e.ctrlKey && ['+', '-', '=', '0'].includes(e.key)) e.preventDefault(); });
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', e => e.preventDefault());
+
 /* ---- палитра команд (Ctrl+K) ---- */
 function openPalette() {
   if (!$('app') || $('app').classList.contains('hidden')) return;
   const cmds = [];
-  [['play', 'Главная'], ['quick', 'Быстрый запуск'], ['library', 'Сборки'], ['catalog', 'Каталог'], ['packs', 'Готовые сборки'], ['skins', 'Скины'], ['settings', 'Настройки'], ['console', 'Консоль']].forEach(([p, n]) => cmds.push(['Перейти', n, () => go(p)]));
+  [['play', 'Главная'], ['quick', 'Быстрый запуск'], ['servers', 'Серверы'], ['library', 'Сборки'], ['catalog', 'Каталог'], ['packs', 'Готовые сборки'], ['skins', 'Скины'], ['settings', 'Настройки'], ['console', 'Консоль']].forEach(([p, n]) => cmds.push(['Перейти', n, () => go(p)]));
   INST.forEach(i => cmds.push(['Играть', i.name, () => launchInst(i.id)]));
   THEMES.forEach(t => cmds.push(['Тема', t.name, () => setTheme(t.id)]));
   LOOKS.forEach(([id, n]) => cmds.push(['Вид', n, () => setPref('look', id)]));
@@ -1041,7 +1133,52 @@ function openPalette() {
     draw(); setTimeout(() => inp.focus(), 30);
   });
 }
-addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); $('modal').classList.contains('hidden') ? openPalette() : closeModal(); } });
+
+/* ---- серверы ---- */
+const servers = () => S.get('servers', []);
+const svCache = {};
+function renderServers(refresh) {
+  const box = $('sv-list'); box.innerHTML = ''; const list = servers();
+  if (!list.length) { const e = el('div', 'empty', 'Серверов пока нет. Нажми «Добавить сервер» и впиши адрес, например play.example.com'); e.style.gridColumn = '1 / -1'; box.appendChild(e); return; }
+  list.forEach((sv, idx) => {
+    const c = el('div', 'pn ci sv'); const st = svCache[sv.addr];
+    const head = el('div', 'head'); const ic = el('div', 'ic'); if (st && st.icon) { const im = el('img'); im.src = st.icon; im.alt = ''; ic.appendChild(im); } else ic.textContent = (sv.name || '?')[0].toUpperCase();
+    const t = el('div'); t.style.minWidth = 0; const nm = el('div', 'name'); const dot = el('span', 'dot' + (st ? (st.online ? ' on' : ' off') : '')); nm.append(dot, sv.name);
+    t.append(nm, el('div', 'by', sv.addr)); head.append(ic, t);
+    const info = el('div', 'motd', st ? (st.online ? (st.motd || 'Сервер работает') : 'Сервер не отвечает') : 'Проверяю…');
+    const meta = el('div', 'stat', st && st.online ? 'Онлайн: ' + (st.players ?? '?') + ' из ' + (st.max ?? '?') + (st.version ? ' · ' + st.version : '') : '');
+    const foot = el('div', 'foot');
+    const sel = el('select'); sel.className = 'mini'; INST.forEach(i => { const o = el('option', '', i.name); o.value = i.id; sel.appendChild(o); }); sel.value = sv.inst && byId(sv.inst) ? sv.inst : (curInst() ? curInst().id : (INST[0] || {}).id); sel.onchange = () => { const l = servers(); l[idx].inst = sel.value; S.set('servers', l); };
+    const go1 = el('button', 'btn', 'Играть'); go1.onclick = () => { if (!sel.value) return toast('Сначала создай сборку'); S.set('curInst', sel.value); launchInst(sel.value, sv.addr); };
+    const del = el('button', 'btn ghost sm', 'Удалить'); del.onclick = async () => { if (await confirmBox('Убрать сервер «' + sv.name + '» из списка?')) { const l = servers(); l.splice(idx, 1); S.set('servers', l); renderServers(false); } };
+    foot.append(sel, go1, del); c.append(head, info, meta, foot); box.appendChild(c);
+    if (refresh && !c.dataset.p) { c.dataset.p = 1; invoke('server_status', { address: sv.addr }).then(r => { svCache[sv.addr] = r; }).catch(() => { svCache[sv.addr] = { online: false }; }).finally(() => { if (curPage === 'servers') renderServers(false); }); }
+  });
+}
+$('sv-add').onclick = () => openModal(b => {
+  b.appendChild(el('h2', '', 'Новый сервер'));
+  const f1 = el('div', 'field'); f1.append(el('label', 'l', 'Название')); const n = el('input'); n.type = 'text'; n.placeholder = 'Мой сервер'; f1.appendChild(n);
+  const f2 = el('div', 'field'); f2.append(el('label', 'l', 'Адрес')); const a = el('input'); a.type = 'text'; a.placeholder = 'play.example.com или адрес:порт'; a.spellcheck = false; f2.appendChild(a);
+  const row = el('div', 'row'); row.style.justifyContent = 'flex-end';
+  const no = el('button', 'btn ghost', 'Отмена'); no.onclick = closeModal;
+  const ok = el('button', 'btn', 'Добавить'); ok.onclick = () => { const addr = a.value.trim().toLowerCase(); if (!/^[a-z0-9._:-]{3,100}$/.test(addr)) return toast('Проверь адрес сервера'); const l = servers(); l.push({ name: n.value.trim() || addr, addr, inst: curInst() ? curInst().id : '' }); S.set('servers', l); closeModal(); renderServers(true); };
+  row.append(no, ok); b.append(f1, f2, row); setTimeout(() => n.focus(), 30);
+});
+$('sv-share').onclick = () => {
+  const code = btoa(unescape(encodeURIComponent(JSON.stringify(servers().map(s => ({ name: s.name, addr: s.addr }))))));
+  (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(() => toast('Код списка скопирован. Отправь его другу'), () => toast('Не удалось скопировать'));
+};
+$('sv-import').onclick = () => openModal(b => {
+  b.appendChild(el('h2', '', 'Вставить список серверов'));
+  const f = el('div', 'field'); f.append(el('label', 'l', 'Код, который прислал друг')); const ta = el('textarea'); ta.style.minHeight = '90px'; f.appendChild(ta);
+  const row = el('div', 'row'); row.style.justifyContent = 'flex-end';
+  const no = el('button', 'btn ghost', 'Отмена'); no.onclick = closeModal;
+  const ok = el('button', 'btn', 'Добавить'); ok.onclick = () => {
+    try { const arr = JSON.parse(decodeURIComponent(escape(atob(ta.value.trim())))); const l = servers(); let n = 0; arr.forEach(x => { if (x && /^[a-z0-9._:-]{3,100}$/.test(x.addr) && !l.some(y => y.addr === x.addr)) { l.push({ name: String(x.name || x.addr).slice(0, 40), addr: x.addr, inst: '' }); n++; } }); S.set('servers', l); closeModal(); renderServers(true); toast('Добавлено серверов: ' + n); }
+    catch { toast('Не удалось прочитать код'); }
+  };
+  row.append(no, ok); b.append(f, row);
+});
 
 /* ---- автообновление ---- */
 let UPD = null;

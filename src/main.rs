@@ -3,9 +3,11 @@
 
 mod auth;
 mod catalog;
+mod extras;
 mod game;
 mod instances;
 mod loaders;
+mod servers;
 
 use futures_util::StreamExt;
 use serde::Serialize;
@@ -487,9 +489,24 @@ fn set_window_size(window: tauri::WebviewWindow, width: u32, height: u32) -> Res
     window.center().map_err(e)
 }
 
+/// true только в сборке для разработки (cargo tauri dev). В установщике DevTools нет.
 #[tauri::command]
-fn open_devtools(window: tauri::WebviewWindow) {
-    window.open_devtools();
+fn is_dev_build() -> bool {
+    cfg!(debug_assertions)
+}
+
+#[tauri::command]
+fn open_devtools(window: tauri::WebviewWindow) -> Result<(), String> {
+    #[cfg(debug_assertions)]
+    {
+        window.open_devtools();
+        Ok(())
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = window;
+        Err("В готовой версии DevTools отключены".to_string())
+    }
 }
 
 #[tauri::command]
@@ -613,6 +630,7 @@ fn main() {
             set_zoom,
             set_window_size,
             open_devtools,
+            is_dev_build,
             minimize_window,
             exit_app,
             install_font,
@@ -635,6 +653,22 @@ fn main() {
             catalog::catalog_install,
             catalog::modpack_install,
             catalog::import_pack,
+            catalog::content_check_updates,
+            catalog::content_update,
+            catalog::export_instance,
+            catalog::content_check_deps,
+            extras::open_url,
+            extras::config_list,
+            extras::config_read,
+            extras::config_write,
+            extras::crash_info,
+            extras::open_crash_folder,
+            extras::stats_get,
+            extras::skin_lib_list,
+            extras::skin_lib_add,
+            extras::skin_lib_delete,
+            extras::skin_lib_apply,
+            servers::server_status,
             auth::get_account,
             auth::logout,
             auth::ely_login,

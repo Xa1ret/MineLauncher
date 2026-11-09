@@ -125,6 +125,7 @@
     <div class="logo" id="logo" title="MineLauncher"><svg><use href="#logo"/></svg></div>
     <button class="tab on" data-page="play"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg>Главная</button>
     <button class="tab" data-page="quick"><svg viewBox="0 0 24 24"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></svg>Быстро</button>
+    <button class="tab" data-page="servers"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M7 7h.01M7 17h.01"/></svg>Серверы</button>
     <button class="tab" data-page="library"><svg viewBox="0 0 24 24"><path d="M4 5h6v6H4zM14 5h6v6h-6zM4 15h6v4H4zM14 15h6v4h-6z"/></svg>Сборки</button>
     <button class="tab" data-page="catalog"><svg viewBox="0 0 24 24"><path d="M11 4a7 7 0 100 14 7 7 0 000-14zM16 16l5 5"/></svg>Каталог</button>
     <button class="tab" data-page="packs"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v10l-8 4-8-4V7zM4 7l8 4 8-4M12 11v10"/></svg>Готовые</button>
@@ -198,7 +199,8 @@
               <h2>Основное</h2>
               <div class="field"><label class="l" for="is-name">Название</label><input type="text" id="is-name"></div>
               <div class="field"><label class="l" for="is-ram">Память: <b id="is-ramval" style="color:var(--fg)"></b></label><input type="range" id="is-ram" min="1" max="32" step="1"></div>
-              <div class="field" style="margin-bottom:0"><label class="l" for="is-jvm">Доп. аргументы Java (необязательно)</label><input type="text" id="is-jvm" placeholder="-XX:+UseG1GC" spellcheck="false"></div>
+              <div class="field"><label class="l" for="is-jvm">Доп. аргументы Java (необязательно)</label><input type="text" id="is-jvm" placeholder="-XX:+UseG1GC" spellcheck="false"></div>
+              <div class="field" style="margin-bottom:0"><label class="l" for="is-java">Своя Java для этой сборки (пусто = общая)</label><div class="row"><input type="text" id="is-java" class="grow" placeholder="Автоматически" spellcheck="false"><button class="btn ghost sm" id="is-javapick">Выбрать</button></div></div>
             </div>
             <div class="pn">
               <h2>Действия</h2>
@@ -207,6 +209,9 @@
                 <button class="btn ghost block" id="is-shots">Открыть скриншоты</button>
                 <button class="btn ghost block" id="is-icon">Сменить значок</button>
                 <button class="btn ghost block" id="is-flags">Оптимальные флаги Java</button>
+                <button class="btn ghost block" id="is-config">Редактор конфигов</button>
+                <button class="btn ghost block" id="is-crash">Краши и логи игры</button>
+                <button class="btn ghost block" id="is-export">Экспорт в файл для друга</button>
                 <button class="btn ghost block" id="is-dup">Сделать копию</button>
                 <button class="btn ghost block" id="is-del">Удалить сборку</button>
               </div>
@@ -287,6 +292,17 @@
       </div>
     </section>
 
+    <!-- Серверы -->
+    <section class="page" id="page-servers">
+      <div class="top row">
+        <div class="grow"><h1>Серверы</h1><p class="muted">Любимые серверы: онлайн, игроки и вход в одно нажатие.</p></div>
+        <button class="btn ghost" id="sv-share">Скопировать список</button>
+        <button class="btn ghost" id="sv-import">Вставить список</button>
+        <button class="btn" id="sv-add">Добавить сервер</button>
+      </div>
+      <div class="scroll"><div class="cards" id="sv-list"></div></div>
+    </section>
+
     <!-- Скины -->
     <section class="page" id="page-skins">
       <div class="top"><h1>Скины</h1><p class="muted">Так тебя видят в игре. Скин меняется в твоём аккаунте.</p></div>
@@ -306,6 +322,9 @@
           <button data-s="acc">Аккаунт</button>
           <button data-s="java">Java</button>
           <button data-s="cat">Каталог</button>
+          <button data-s="keys">Горячие клавиши</button>
+          <button data-s="stats">Статистика</button>
+          <button data-s="lang">Язык</button>
           <button data-s="upd">Обновления</button>
           <button data-s="dev">Разработчик</button>
         </div>
@@ -520,6 +539,37 @@
             </div>
           </div>
 
+          <!-- Горячие клавиши -->
+          <div class="sp hidden" id="sp-keys">
+            <div class="pn">
+              <h2>Горячие клавиши</h2>
+              <p class="muted small" style="margin-bottom:14px">Нажми на сочетание и введи новое. Backspace очищает, Esc отменяет.</p>
+              <div id="keys-list"></div>
+              <button class="btn ghost" id="keys-reset" style="margin-top:14px">Вернуть по умолчанию</button>
+            </div>
+          </div>
+
+          <!-- Статистика -->
+          <div class="sp hidden" id="sp-stats">
+            <div class="pn">
+              <h2>Статистика игры</h2>
+              <div class="stat-tiles" id="st-tiles"></div>
+              <h3 class="grp">Последние 14 дней</h3>
+              <div class="st-days" id="st-days"></div>
+              <h3 class="grp">По сборкам</h3>
+              <div id="st-inst"></div>
+            </div>
+          </div>
+
+          <!-- Язык -->
+          <div class="sp hidden" id="sp-lang">
+            <div class="pn">
+              <h2>Язык / Language</h2>
+              <div class="field"><select id="lang-sel"><option value="ru">Русский</option><option value="en">English</option></select></div>
+              <p class="muted small">Часть текстов, пришедших из каталога (описания модов), остаётся на языке автора.</p>
+            </div>
+          </div>
+
           <!-- Обновления -->
           <div class="sp hidden" id="sp-upd">
             <div class="pn">
@@ -576,7 +626,7 @@
     <section class="page" id="page-console">
       <div class="top row"><div class="grow"><h1>Консоль</h1><p class="muted">Сообщения игры. Пригодятся, если что-то пошло не так.</p></div>
         <input type="text" id="log-q" class="mini" placeholder="Фильтр…" aria-label="Фильтр" spellcheck="false">
-        <button class="btn ghost" id="log-copy">Копировать</button><button class="btn ghost" id="log-clear">Очистить</button></div>
+        <button class="btn ghost" id="log-copy">Копировать</button><button class="btn ghost" id="log-crash">Последний краш</button><button class="btn ghost" id="log-clear">Очистить</button></div>
       <div id="log"></div>
     </section>
   </main>
@@ -601,6 +651,12 @@
           <div class="row wrap sub" id="sk-acc-actions"></div>
         </div>
         <div class="msg" id="sk-msg"></div>
+        <div class="opt on" id="sk-lib" style="margin-top:14px">
+          <b>Мои скины</b>
+          <div class="muted small">Сохрани файлы PNG, чтобы быстро менять скин. Нажми на скин, чтобы посмотреть его, и ещё раз на кнопку «Надеть».</div>
+          <div class="skin-lib" id="sk-lib-grid"></div>
+          <div class="row wrap sub"><button class="btn ghost sm" id="sk-lib-add">Добавить скин из файла</button><button class="btn sm hidden" id="sk-lib-wear">Надеть</button><button class="btn ghost sm hidden" id="sk-lib-del">Удалить</button></div>
+        </div>
       </div>
     </div>
   </div>
@@ -634,5 +690,7 @@
 <img id="mascot" alt="" class="hidden">
 <div id="toast"></div>
 <script src="app.js"></script>
+<script src="i18n.js"></script>
+<script src="extras.js"></script>
 </body>
 </html>

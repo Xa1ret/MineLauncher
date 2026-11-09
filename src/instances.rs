@@ -41,6 +41,9 @@ pub struct Instance {
     pub play_secs: u64,
     #[serde(default)]
     pub icon: String,
+    /// своя Java для этой сборки (пусто = общая настройка)
+    #[serde(default)]
+    pub java_path: String,
 }
 
 pub fn safe_id(id: &str) -> Result<(), String> {
@@ -130,6 +133,7 @@ pub fn create(
         last_played: 0,
         play_secs: 0,
         icon: icon.to_string(),
+        java_path: String::new(),
     };
     save_instance(&inst)?;
     for sub in ["mods", "resourcepacks", "shaderpacks", "saves"] {
@@ -143,6 +147,7 @@ pub fn touch_played(id: &str) {
         i.last_played = now();
         let _ = save_instance(&i);
     }
+    crate::extras::stats_launch(id);
 }
 
 pub fn add_playtime(id: &str, secs: u64) {
@@ -151,6 +156,7 @@ pub fn add_playtime(id: &str, secs: u64) {
         i.play_secs += secs;
         let _ = save_instance(&i);
     }
+    crate::extras::stats_add(id, secs);
 }
 
 // ---------------------------------------------------------------------------
@@ -196,6 +202,7 @@ pub fn update_instance(
     name: Option<String>,
     ram_mb: Option<u32>,
     jvm_args: Option<String>,
+    java_path: Option<String>,
 ) -> Result<Instance, String> {
     let mut i = load_instance(&id)?;
     if let Some(n) = name {
@@ -208,6 +215,9 @@ pub fn update_instance(
     }
     if let Some(a) = jvm_args {
         i.jvm_args = a.trim().to_string();
+    }
+    if let Some(j) = java_path {
+        i.java_path = j.trim().to_string();
     }
     save_instance(&i)?;
     Ok(i)
@@ -270,6 +280,7 @@ pub fn open_instance_folder(id: String, sub: Option<String>) -> Result<(), Strin
             "saves",
             "screenshots",
             "config",
+            "crash-reports",
         ];
         if allowed.contains(&s.as_str()) {
             p = p.join(s);
@@ -297,7 +308,7 @@ fn records_path(id: &str) -> PathBuf {
     dir_of(id).join("minelauncher.content.json")
 }
 
-fn read_records(id: &str) -> Vec<Value> {
+pub fn read_records(id: &str) -> Vec<Value> {
     std::fs::read_to_string(records_path(id))
         .ok()
         .and_then(|s| serde_json::from_str::<Vec<Value>>(&s).ok())
@@ -316,7 +327,7 @@ pub fn add_record(id: &str, rec: Value) {
     );
 }
 
-fn remove_record(id: &str, file_name: &str) {
+pub fn remove_record(id: &str, file_name: &str) {
     let mut all = read_records(id);
     all.retain(|r| r["file_name"].as_str() != Some(file_name));
     let _ = std::fs::write(
