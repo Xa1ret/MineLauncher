@@ -407,6 +407,9 @@ pub async fn launch(
     let detach = detach.unwrap_or(false);
     let mut cmd = tokio::process::Command::new(&java);
     cmd.args(&args).current_dir(&game_dir);
+    // без чёрного окна консоли Java
+    #[cfg(windows)]
+    cmd.creation_flags(0x08000000);
     if detach {
         // лаунчер закроется, поэтому вывод игры пишем в файл, а не в трубу
         let log_path = game_dir.join("launcher_log.txt");

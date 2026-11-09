@@ -271,7 +271,11 @@ async fn run_installer(
         "Устанавливаю загрузчик. Это может занять несколько минут…",
         0.06,
     );
-    let mut child = tokio::process::Command::new(java)
+    let mut inst_cmd = tokio::process::Command::new(java);
+    // без чёрного окна консоли Java
+    #[cfg(windows)]
+    inst_cmd.creation_flags(0x08000000);
+    let mut child = inst_cmd
         .arg("-jar")
         .arg(&jar)
         .arg("--installClient")
