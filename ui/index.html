@@ -168,6 +168,7 @@
         <div class="grow"><h1>Сборки</h1><p class="muted">У каждой сборки своя версия игры, свой загрузчик и свои моды: они не мешают друг другу.</p></div>
         <input type="text" id="lib-q" class="mini" placeholder="Поиск…" aria-label="Поиск сборок" spellcheck="false">
         <select id="lib-sort" class="mini" aria-label="Сортировка"><option value="recent">Недавние</option><option value="name">По имени</option><option value="time">По времени игры</option><option value="fav">Избранные</option></select>
+        <button class="btn ghost" id="lib-from">Из другого лаунчера</button>
         <button class="btn ghost" id="lib-import">Импорт из файла</button>
         <button class="btn" id="lib-new">Создать сборку</button>
       </div>
@@ -209,6 +210,9 @@
                 <button class="btn ghost block" id="is-shots">Открыть скриншоты</button>
                 <button class="btn ghost block" id="is-icon">Сменить значок</button>
                 <button class="btn ghost block" id="is-flags">Оптимальные флаги Java</button>
+                <button class="btn block" id="is-boost">Ускорить игру одной кнопкой</button>
+                <button class="btn ghost block" id="is-version">Сменить версию и ядро</button>
+                <button class="btn ghost block" id="is-repair">Починить сборку</button>
                 <button class="btn ghost block" id="is-config">Редактор конфигов</button>
                 <button class="btn ghost block" id="is-crash">Краши и логи игры</button>
                 <button class="btn ghost block" id="is-export">Экспорт в файл для друга</button>
@@ -322,6 +326,7 @@
           <button data-s="acc">Аккаунт</button>
           <button data-s="java">Java</button>
           <button data-s="cat">Каталог</button>
+          <button data-s="audio">Звук и музыка</button>
           <button data-s="keys">Горячие клавиши</button>
           <button data-s="stats">Статистика</button>
           <button data-s="lang">Язык</button>
@@ -539,6 +544,27 @@
             </div>
           </div>
 
+          <!-- Звук и музыка -->
+          <div class="sp hidden" id="sp-audio">
+            <div class="pn">
+              <h2>Музыка</h2>
+              <p class="muted small" style="margin-bottom:14px">Добавь свои файлы (mp3, ogg, wav, m4a, flac), и они будут играть в лаунчере по кругу. Пока идёт игра, музыка ставится на паузу.</p>
+              <label class="check"><input type="checkbox" id="au-on">Фоновая музыка</label>
+              <label class="check"><input type="checkbox" id="au-shuffle">Перемешивать треки</label>
+              <label class="check"><input type="checkbox" id="au-pause">Ставить на паузу, когда запущена игра</label>
+              <div class="field" style="margin-top:12px"><label class="l" for="au-vol">Громкость музыки: <b id="au-volval" style="color:var(--fg)"></b></label><input type="range" id="au-vol" min="0" max="100"></div>
+              <div id="au-list"></div>
+              <div class="row wrap" style="margin-top:10px"><button class="btn ghost" id="au-add">Добавить трек</button><button class="btn" id="au-toggle">Пауза</button><button class="btn ghost" id="au-next">Следующий</button></div>
+              <div class="msg" id="au-msg"></div>
+            </div>
+            <div class="pn">
+              <h2>Звуки интерфейса</h2>
+              <div class="field"><label class="l" for="sfx-kind">Звук нажатий</label><select id="sfx-kind"><option value="off">Выключен</option><option value="soft">Мягкий</option><option value="pixel">Пиксельный</option><option value="anime">Звонкий</option></select></div>
+              <div class="field"><label class="l" for="sfx-vol">Громкость звуков: <b id="sfx-volval" style="color:var(--fg)"></b></label><input type="range" id="sfx-vol" min="0" max="100"></div>
+              <button class="btn ghost" id="sfx-test">Послушать</button>
+            </div>
+          </div>
+
           <!-- Горячие клавиши -->
           <div class="sp hidden" id="sp-keys">
             <div class="pn">
@@ -692,5 +718,6 @@
 <script src="app.js"></script>
 <script src="i18n.js"></script>
 <script src="extras.js"></script>
+<script src="more.js"></script>
 </body>
 </html>

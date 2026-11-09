@@ -1,4 +1,4 @@
-# Автосборка: при создании тега v0.4.1 (и т.п.) GitHub сам соберёт установщик,
+# Автосборка: при создании тега v0.4.1 (и т.п.) GitHub сам соберёт установщики для Windows и Linux,
 # подпишет его и выложит релиз вместе с latest.json для автообновления.
 name: release
 on:
@@ -8,9 +8,18 @@ jobs:
   build:
     permissions:
       contents: write
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Linux dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libxdo-dev
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-node@v4

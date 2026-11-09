@@ -46,6 +46,17 @@ const rawInvoke = T ? T.core.invoke : async (cmd, a = {}) => {
     case 'install_art': case 'install_font': return null;
     case 'app_version': return '0.4.0';
     case 'is_dev_build': return true;
+    case 'boost_instance': await sleep(600); return { added: ['Sodium', 'Lithium', 'FerriteCore'], skipped: ['EntityCulling'], present: ['ModernFix'] };
+    case 'change_version': { const i = INST.find(x => x.id === a.instanceId); if (i) { i.mc_version = a.mcVersion; i.loader = a.loader; } return i; }
+    case 'content_migrate_plan': return [{ file_name: 'a.jar', title: 'Sodium', project_id: 'x', source: 'modrinth', latest: 'sodium-new.jar', enabled: true }, { file_name: 'b.jar', title: 'Old Mod', project_id: 'y', source: 'modrinth', latest: null, enabled: true }, { file_name: 'c.jar', title: 'Fine Mod', project_id: 'z', source: 'modrinth', latest: 'c.jar', enabled: true }];
+    case 'repair_instance': await sleep(600); return { checked: 3150, fixed: 2, loader: false };
+    case 'scan_launchers': return [{ launcher: 'Prism Launcher', name: 'Выживание 1.20', path: 'C:/x', mods: 40, worlds: 2, detected: [{ mc: '1.20.1', loader: 'fabric', loader_version: '0.16.9' }] }, { launcher: 'Minecraft', name: '.minecraft (TLauncher)', path: 'C:/y', mods: 0, worlds: 5, detected: [] }];
+    case 'inspect_folder': return { launcher: 'Папка', name: 'Моя папка', path: a.path, mods: 3, worlds: 1, detected: [] };
+    case 'import_folder': return { id: 'imp1', name: a.name, mc_version: a.mcVersion, loader: a.loader, loader_version: a.loaderVersion, ram_mb: 4096, play_secs: 0, last_played: 0, created: 1, icon: '', jvm_args: '', java_path: '' };
+    case 'music_list': return demo.music || [];
+    case 'music_add': return 'track.mp3';
+    case 'music_delete': return null;
+    case 'music_read': return '';
     case 'config_list': return [{ path: '../options.txt', size: 900 }, { path: 'sodium-options.json', size: 400 }, { path: 'fabric/config.toml', size: 120 }];
     case 'config_read': return '# demo\nfov=70\nrenderDistance=12\n';
     case 'config_write': return null;

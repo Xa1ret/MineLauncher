@@ -16,7 +16,11 @@ use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 /// JSON ванильной версии (из кэша или с серверов Mojang)
-async fn vanilla_json(c: &reqwest::Client, base: &Path, id: &str) -> Result<Value, String> {
+pub(crate) async fn vanilla_json(
+    c: &reqwest::Client,
+    base: &Path,
+    id: &str,
+) -> Result<Value, String> {
     let p = base.join("versions").join(id).join(format!("{}.json", id));
     if let Ok(s) = std::fs::read_to_string(&p) {
         if let Ok(v) = serde_json::from_str::<Value>(&s) {

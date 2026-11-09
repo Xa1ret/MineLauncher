@@ -579,3 +579,4 @@ nav::-webkit-scrollbar { width: 0; }
 .crash-text { width: 100%; height: 38vh; font: 12px/1.45 ui-monospace, Consolas, monospace; resize: none; white-space: pre; }
 .skin-lib { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
 .sk-thumb { width: 56px; height: 56px; image-rendering: pixelated; border: 2px solid transparent; cursor: pointer; background: var(--soft); } .sk-thumb.on, .sk-thumb:hover { border-color: var(--accent); }
+#modal-body { max-height: 92vh; overflow-y: auto; }

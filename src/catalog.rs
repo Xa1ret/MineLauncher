@@ -1338,3 +1338,150 @@ pub async fn content_check_deps(instance_id: String) -> Result<Value, String> {
     }
     Ok(json!({ "missing": missing, "conflicts": conflicts }))
 }
+
+// ---------------------------------------------------------------------------
+//  Ускорение игры, смена версии и перенос модов
+// ---------------------------------------------------------------------------
+
+/// Ставит проверенные моды для скорости (Modrinth, без ключей и регистрации)
+#[tauri::command]
+pub async fn boost_instance(app: AppHandle, instance_id: String) -> Result<Value, String> {
+    let inst = instances::load_instance(&instance_id)?;
+    let slugs: &[&str] = match inst.loader.as_str() {
+        "fabric" | "quilt" => &[
+            "sodium",
+            "lithium",
+            "ferrite-core",
+            "modernfix",
+            "immediatelyfast",
+            "entityculling",
+        ],
+        "forge" => &["embeddium", "ferrite-core", "modernfix"],
+        "neoforge" => &["sodium", "ferrite-core", "modernfix", "immediatelyfast"],
+        _ => {
+            return Err(
+                "Для ванильной сборки нет модов-ускорителей. Создай сборку с Fabric, это самый простой вариант."
+                    .to_string(),
+            )
+        }
+    };
+    let c = client()?;
+    let installed: HashSet<String> = instances::read_records(&instance_id)
+        .into_iter()
+        .filter_map(|r| r["project_id"].as_str().map(|s| s.to_string()))
+        .collect();
+    let (mut added, mut skipped, mut present) = (vec![], vec![], vec![]);
+    for slug in slugs {
+        let proj = match mr_get(&c, &format!("/project/{}", slug), &[]).await {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+        let title = proj["title"].as_str().unwrap_or(slug).to_string();
+        if proj["id"]
+            .as_str()
+            .map(|i| installed.contains(i))
+            .unwrap_or(false)
+        {
+            present.push(title);
+            continue;
+        }
+        match catalog_install(
+            app.clone(),
+            instance_id.clone(),
+            "modrinth".to_string(),
+            "mod".to_string(),
+            slug.to_string(),
+            String::new(),
+            None,
+        )
+        .await
+        {
+            Ok(_) => added.push(title),
+            Err(_) => skipped.push(title),
+        }
+    }
+    progress(&app, "Готово", 1.0);
+    Ok(json!({ "added": added, "skipped": skipped, "present": present }))
+}
+
+/// Меняет версию игры (и при желании версию загрузчика). Загрузчик скачается при запуске.
+#[tauri::command]
+pub fn change_version(
+    instance_id: String,
+    mc_version: String,
+    loader: String,
+    loader_version: String,
+) -> Result<instances::Instance, String> {
+    let mut i = instances::load_instance(&instance_id)?;
+    if mc_version.trim().is_empty() {
+        return Err("Выбери версию игры".to_string());
+    }
+    if !["vanilla", "fabric", "quilt", "forge", "neoforge"].contains(&loader.as_str()) {
+        return Err("Неизвестный загрузчик".to_string());
+    }
+    i.loader = loader;
+    i.mc_version = mc_version.trim().to_string();
+    i.loader_version = loader_version.trim().to_string();
+    i.profile_id = String::new();
+    instances::save_instance(&i)?;
+    Ok(i)
+}
+
+/// Для каждого мода из каталога смотрит, есть ли версия под текущую игру и загрузчик
+#[tauri::command]
+pub async fn content_migrate_plan(
+    instance_id: String,
+    cf_key: String,
+) -> Result<Vec<Value>, String> {
+    let inst = instances::load_instance(&instance_id)?;
+    let c = client()?;
+    let loader = if inst.loader != "vanilla" {
+        inst.loader.clone()
+    } else {
+        String::new()
+    };
+    let dir = instances::dir_of(&instance_id).join("mods");
+    let recs: Vec<Value> = instances::read_records(&instance_id)
+        .into_iter()
+        .filter(|r| {
+            r["kind"].as_str() == Some("mod")
+                && r["project_id"].is_string()
+                && r["source"].is_string()
+        })
+        .collect();
+    let mc = inst.mc_version.clone();
+    let out: Vec<Option<Value>> = futures_util::stream::iter(recs.into_iter().map(|r| {
+        let c = c.clone();
+        let mc = mc.clone();
+        let loader = loader.clone();
+        let key = cf_key.clone();
+        let dir = dir.clone();
+        async move {
+            let file = r["file_name"].as_str()?.to_string();
+            let on = dir.join(&file).exists();
+            let off = dir.join(format!("{}.disabled", file)).exists();
+            if !on && !off {
+                return None;
+            }
+            let pid = r["project_id"].as_str()?.to_string();
+            let src = r["source"].as_str()?.to_string();
+            let latest = if src == "modrinth" {
+                mr_latest_name(&c, &mc, &pid, &loader).await
+            } else {
+                cf_latest_name(&c, &key, &mc, &pid, &loader).await
+            };
+            Some(json!({
+                "file_name": file,
+                "title": r["title"],
+                "project_id": pid,
+                "source": src,
+                "latest": latest,
+                "enabled": on
+            }))
+        }
+    }))
+    .buffer_unordered(8)
+    .collect()
+    .await;
+    Ok(out.into_iter().flatten().collect())
+}

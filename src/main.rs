@@ -8,6 +8,7 @@ mod game;
 mod instances;
 mod loaders;
 mod servers;
+mod tools;
 
 use futures_util::StreamExt;
 use serde::Serialize;
@@ -657,6 +658,17 @@ fn main() {
             catalog::content_update,
             catalog::export_instance,
             catalog::content_check_deps,
+            catalog::boost_instance,
+            catalog::change_version,
+            catalog::content_migrate_plan,
+            tools::repair_instance,
+            tools::scan_launchers,
+            tools::inspect_folder,
+            tools::import_folder,
+            tools::music_list,
+            tools::music_add,
+            tools::music_delete,
+            tools::music_read,
             extras::open_url,
             extras::config_list,
             extras::config_read,
