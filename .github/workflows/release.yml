@@ -1,6 +1,8 @@
 # Автосборка: при создании тега v0.4.1 (и т.п.) GitHub сам соберёт установщики для Windows и Linux,
 # подпишет его и выложит релиз вместе с latest.json для автообновления.
 name: release
+permissions:
+  contents: write
 on:
   push:
     tags: ['v*']
