@@ -183,7 +183,8 @@ async function showCrash(id, code) {
     const cp = el('button', 'btn', 'Скопировать текст'); cp.onclick = async () => toast((await copyText(ta.value)) ? 'Текст ошибки скопирован' : 'Не удалось скопировать');
     const fo = el('button', 'btn ghost', 'Папка с отчётами'); fo.onclick = () => invoke('open_crash_folder', { instanceId: id }).catch(e => toast(errText(e)));
     const cl = el('button', 'btn ghost', 'Закрыть'); cl.onclick = closeModal;
-    r1.append(cp, fo, cl); b.appendChild(r1);
+    const sp = el('button', 'btn ghost', 'Написать в поддержку'); sp.onclick = () => { closeModal(); openSupport({ instId: id, code, attach: true, prefill: code === undefined ? '' : (isEn() ? 'The game crashed (exit code ' + code + '). ' : 'Игра вылетела (код ' + code + '). ') }); };
+    r1.append(cp, fo, sp, cl); b.appendChild(r1);
     b.appendChild(el('h3', 'grp', 'Спросить, что случилось'));
     b.appendChild(el('p', 'muted small', 'Нажми на сайт: текст ошибки скопируется, сайт откроется в браузере. Останется вставить текст (Ctrl+V) в чат.'));
     const r2 = el('div', 'row wrap');

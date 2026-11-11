@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           cd ui
-          for f in app.js extras.js i18n.js; do
+          for f in *.js; do
             npx --yes terser@5 "$f" --compress passes=2 --mangle -o "$f.min" && mv "$f.min" "$f"
           done
           npx --yes csso-cli@4 style.css -o style.min.css && mv style.min.css style.css

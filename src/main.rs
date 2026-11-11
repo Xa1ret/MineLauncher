@@ -8,6 +8,8 @@ mod game;
 mod instances;
 mod loaders;
 mod servers;
+mod share;
+mod support;
 mod tools;
 
 use futures_util::StreamExt;
@@ -681,6 +683,12 @@ fn main() {
             extras::skin_lib_delete,
             extras::skin_lib_apply,
             servers::server_status,
+            share::pack_code_export,
+            share::pack_code_preview,
+            share::pack_code_import,
+            support::support_send,
+            support::support_poll,
+            support::support_info,
             auth::get_account,
             auth::logout,
             auth::ely_login,

@@ -546,6 +546,33 @@ async fn cf_install(
     Ok(Installed { title, saved, deps })
 }
 
+/// Ставит один файл (без зависимостей) в сборку. Нужна для «Кода сборки».
+/// Возвращает название установленного проекта.
+pub(crate) async fn install_one(
+    c: &reqwest::Client,
+    cf_key: &str,
+    inst: &Instance,
+    source: &str,
+    kind: &str,
+    pid: &str,
+) -> Result<String, String> {
+    let loader = if kind == "mod" && inst.loader != "vanilla" {
+        inst.loader.clone()
+    } else {
+        String::new()
+    };
+    let res = if source == "modrinth" {
+        mr_install(c, inst, kind, pid, &loader, &None).await?
+    } else {
+        cf_install(c, cf_key, inst, kind, pid, &loader, &None).await?
+    };
+    Ok(res.title)
+}
+
+pub(crate) fn http_client() -> Result<reqwest::Client, String> {
+    client()
+}
+
 #[tauri::command]
 pub async fn catalog_install(
     app: AppHandle,

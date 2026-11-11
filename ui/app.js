@@ -70,8 +70,14 @@ const rawInvoke = T ? T.core.invoke : async (cmd, a = {}) => {
     case 'content_check_updates': return [{ file_name: 'sodium.jar', title: 'Sodium', project_id: 'x', source: 'modrinth', latest: 'sodium-new.jar' }];
     case 'content_update': await sleep(500); return 'Sodium';
     case 'export_instance': return 'Сохранено (12 файлов)';
+    case 'pack_code_export': return { code: 'ML1.' + 'eyJkZW1vIjoxfQ'.repeat(12) + '.a1b2', count: 24, skipped: a.instanceId === 'demo2' ? 3 : 0, length: 180, name: 'Моя сборка' };
+    case 'pack_code_preview': { if (!a.code.includes('ML1.')) throw 'В тексте нет кода сборки (он начинается с ML1.)'; return { name: 'Выживание с друзьями', mc_version: '1.20.1', loader: 'fabric', loader_version: '0.16.9', mods: 24, resourcepacks: 1, shaders: 1, curseforge: 0 }; }
+    case 'pack_code_import': { await sleep(500); const i = { id: 'demo' + (++demo.n), name: a.name || 'Сборка по коду', mc_version: '1.20.1', loader: 'fabric', loader_version: '0.16.9', ram_mb: 4096, play_secs: 0, last_played: 0, created: 1, icon: '', jvm_args: '', java_path: '' }; demo.inst.unshift(i); return { instance: i, ok: 22, failed: ['AbCd1234: Для «Old Mod» нет версии под fabric 1.20.1'] }; }
+    case 'support_info': return { configured: !S.get('demoNoSupp', false), version: '0.4.4', os: 'windows x86_64' };
+    case 'support_send': { demo.supp = demo.supp || []; if (a.text.length > 1500) throw 'Сообщение слишком длинное'; demo.supp.push({ id: demo.supp.length + 1, text: 'Привет! Попробуй обновить Java до 21 и поставить 6 ГБ памяти. Если не поможет, пришли лог ещё раз.', ts: Math.floor(Date.now() / 1000), at: Date.now() + 4000 }); return { ok: true }; }
+    case 'support_poll': return { messages: (demo.supp || []).filter(m => m.at <= Date.now() && m.id > a.after) };
     case 'server_status': await sleep(400); return { online: a.address.startsWith('a'), players: 128, max: 500, version: '1.21.4', motd: 'Добро пожаловать на сервер', icon: null };
-    case 'check_update': return S.get('demoUpd', false) ? { available: true, version: '0.5.0', current: '0.4.0', notes: 'Новые темы и быстрый запуск\nИсправлены мелкие ошибки' } : { available: false };
+    case 'check_update': return S.get('demoUpd', false) ? { available: true, version: '0.4.4', current: '0.4.0', notes: 'Новые темы и быстрый запуск\nИсправлены мелкие ошибки' } : { available: false };
     case 'install_update': await sleep(800); return null;
     case 'launch': throw 'Это демо в браузере. Запусти приложение через cargo tauri dev.';
     default: return;
